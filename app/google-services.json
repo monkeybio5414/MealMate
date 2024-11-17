@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "791264521179",
+    "project_id": "mealmate-33002",
+    "storage_bucket": "mealmate-33002.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:791264521179:android:14bd093c596326fccc95fe",
+        "android_client_info": {
+          "package_name": "com.comp3040.mealmate"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzq4F-cQ4ThPYB3d0tFwyI-7b4X_3hUhM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
