@@ -27,7 +27,6 @@ import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat.startActivity
@@ -44,10 +43,8 @@ fun ListItems(items: List<ItemsModel>) {
             .padding(start = 8.dp, end = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
-
     ) {
         items(items.size) { row ->
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -55,9 +52,9 @@ fun ListItems(items: List<ItemsModel>) {
                 RecommendedItem(items, row)
             }
         }
-
     }
 }
+
 @Composable
 fun ListItemsFullSize(items: List<ItemsModel>) {
     LazyVerticalGrid(
@@ -67,10 +64,8 @@ fun ListItemsFullSize(items: List<ItemsModel>) {
             .padding(start = 8.dp, end = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
-
     ) {
         items(items.size) { row ->
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -78,7 +73,6 @@ fun ListItemsFullSize(items: List<ItemsModel>) {
                 RecommendedItem(items, row)
             }
         }
-
     }
 }
 
@@ -99,10 +93,10 @@ fun RecommendedItem(items: List<ItemsModel>, pos: Int) {
                 .height(175.dp)
                 .padding(8.dp)
                 .clickable {
-                    val intent=Intent(context, DetailActivity::class.java).apply {
-                        putExtra("object",items[pos])
+                    val intent = Intent(context, DetailActivity::class.java).apply {
+                        putExtra("object", items[pos])
                     }
-                    startActivity(context,intent,null)
+                    startActivity(context, intent, null)
                 },
             contentScale = ContentScale.Inside
         )
@@ -116,7 +110,9 @@ fun RecommendedItem(items: List<ItemsModel>, pos: Int) {
             modifier = Modifier.padding(top = 8.dp)
         )
         Row(
-            modifier = Modifier.padding(top = 4.dp).fillMaxWidth(),
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row {
@@ -131,15 +127,13 @@ fun RecommendedItem(items: List<ItemsModel>, pos: Int) {
                     color = Color.Black,
                     fontSize = 15.sp
                 )
-
             }
             Text(
-                text = "$${items[pos].price}",
+                text = "${items[pos].calories} kcal",
                 color = colorResource(R.color.purple),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
         }
-
     }
 }

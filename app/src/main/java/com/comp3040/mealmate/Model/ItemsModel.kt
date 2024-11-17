@@ -4,28 +4,28 @@ import android.os.Parcel
 import android.os.Parcelable
 
 data class ItemsModel(
-    var title: String = "",
-    var description: String = "",
-    var picUrl: ArrayList<String> = ArrayList(),
-    var model: ArrayList<String> = ArrayList(),
-    var price: Double = 0.0,
-    var rating: Double = 0.0,
-    var numberInCart: Int = 0,
-    var showRecommended: Boolean = false,
-    var categoryId: String = "",
-    var steps: List<String> = listOf() // Added this line
+    var title: String = "", // The name of the meal/recipe
+    var description: String = "", // Description of the meal/recipe
+    var picUrl: ArrayList<String> = ArrayList(), // List of image URLs
+    var ingredients: ArrayList<String> = ArrayList(), // Updated from model to ingredients
+    var calories: Int = 0, // Updated from price to calories
+    var rating: Double = 0.0, // Rating of the meal/recipe
+    var day: String = "", // Updated from numberInCart to day
+    var showRecommended: Boolean = false, // Whether the item is recommended
+    var categoryId: String = "", // Category ID of the meal/recipe
+    var steps: List<String> = listOf() // Preparation steps
 ) : Parcelable {
     constructor(parcel: Parcel) : this(
         parcel.readString().toString(),
         parcel.readString().toString(),
         parcel.createStringArrayList() as ArrayList<String>,
-        parcel.createStringArrayList() as ArrayList<String>,
+        parcel.createStringArrayList() as ArrayList<String>, // Updated from model to ingredients
+        parcel.readInt(), // Updated from price to calories
         parcel.readDouble(),
-        parcel.readDouble(),
-        parcel.readInt(),
+        parcel.readString().toString(), // Updated from numberInCart to day
         parcel.readByte() != 0.toByte(),
         parcel.readString().toString(),
-        parcel.createStringArrayList() ?: listOf() // Read steps from parcel
+        parcel.createStringArrayList() ?: listOf()
     ) {
     }
 
@@ -33,13 +33,13 @@ data class ItemsModel(
         parcel.writeString(title)
         parcel.writeString(description)
         parcel.writeStringList(picUrl)
-        parcel.writeStringList(model)
-        parcel.writeDouble(price)
+        parcel.writeStringList(ingredients) // Updated from model to ingredients
+        parcel.writeInt(calories) // Updated from price to calories
         parcel.writeDouble(rating)
-        parcel.writeInt(numberInCart)
+        parcel.writeString(day) // Updated from numberInCart to day
         parcel.writeByte(if (showRecommended) 1 else 0)
         parcel.writeString(categoryId)
-        parcel.writeStringList(steps) // Write steps to parcel
+        parcel.writeStringList(steps)
     }
 
     override fun describeContents(): Int {

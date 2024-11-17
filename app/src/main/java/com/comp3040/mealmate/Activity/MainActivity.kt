@@ -74,7 +74,7 @@ class MainActivity : BaseActivity() {
         setContent {
             MainActivityScreen(
                 onCartClick = {
-                    startActivity(Intent(this, CartActivity::class.java))
+                    startActivity(Intent(this, MealPlanActivity::class.java))
                 },
                 onCameraClick = {
                     startActivity(Intent(this, CameraActivity::class.java))

@@ -317,8 +317,11 @@ public class TinyDB {
      * @return String value at 'key' or "" (empty String) if key not found
      */
     public String getString(String key) {
-        return preferences.getString(key, "");
+        String value = preferences.getString(key, "");
+        Log.d("TinyDB", "getString: Retrieved string for key \"" + key + "\": " + value);
+        return value;
     }
+
 
     /**
      * Get parsed ArrayList of String from SharedPreferences at 'key'
@@ -327,8 +330,11 @@ public class TinyDB {
      * @return ArrayList of String
      */
     public ArrayList<String> getListString(String key) {
-        return new ArrayList<String>(Arrays.asList(TextUtils.split(preferences.getString(key, ""), "‚‗‚")));
+        String retrievedData = preferences.getString(key, "");
+        Log.d("TinyDB", "getListString: Retrieved data for key \"" + key + "\": " + retrievedData);
+        return new ArrayList<>(Arrays.asList(TextUtils.split(retrievedData, "‚‗‚")));
     }
+
 
     /**
      * Get boolean value from SharedPreferences at 'key'. If key not found, return false
@@ -366,25 +372,27 @@ public class TinyDB {
 
     public ArrayList<ItemsModel> getListObject(String key) {
         Gson gson = new Gson();
-
         ArrayList<String> objStrings = getListString(key);
-        ArrayList<ItemsModel> playerList = new ArrayList<ItemsModel>();
+        Log.d("TinyDB", "getListObject: Retrieved serialized objects for key \"" + key + "\": " + objStrings);
 
-        for (String jObjString : objStrings) {
-            ItemsModel player = gson.fromJson(jObjString, ItemsModel.class);
-            playerList.add(player);
+        ArrayList<ItemsModel> objectList = new ArrayList<>();
+        for (String objString : objStrings) {
+            ItemsModel obj = gson.fromJson(objString, ItemsModel.class);
+            objectList.add(obj);
         }
-        return playerList;
+        Log.d("TinyDB", "getListObject: Deserialized object list for key \"" + key + "\": " + objectList);
+        return objectList;
     }
+
 
     public <T> T getObject(String key, Class<T> classOfT) {
-
         String json = getString(key);
-        Object value = new Gson().fromJson(json, classOfT);
-        if (value == null)
-            throw new NullPointerException();
-        return (T) value;
+        Log.d("TinyDB", "getObject: Retrieved JSON for key \"" + key + "\": " + json);
+        T obj = new Gson().fromJson(json, classOfT);
+        Log.d("TinyDB", "getObject: Deserialized object for key \"" + key + "\": " + obj);
+        return obj;
     }
+
 
     /**
      * Put int value into SharedPreferences with 'key' and save
@@ -475,8 +483,10 @@ public class TinyDB {
     public void putString(String key, String value) {
         checkForNullKey(key);
         checkForNullValue(value);
+        Log.d("TinyDB", "putString: Saving string for key \"" + key + "\": " + value);
         preferences.edit().putString(key, value).apply();
     }
+
 
     /**
      * Put ArrayList of String into SharedPreferences with 'key' and save
@@ -486,9 +496,12 @@ public class TinyDB {
      */
     public void putListString(String key, ArrayList<String> stringList) {
         checkForNullKey(key);
-        String[] myStringList = stringList.toArray(new String[stringList.size()]);
-        preferences.edit().putString(key, TextUtils.join("‚‗‚", myStringList)).apply();
+        String[] myStringList = stringList.toArray(new String[0]);
+        String serializedData = TextUtils.join("‚‗‚", myStringList);
+        Log.d("TinyDB", "putListString: Saving data for key \"" + key + "\": " + serializedData);
+        preferences.edit().putString(key, serializedData).apply();
     }
+
 
     /**
      * Put boolean value into SharedPreferences with 'key' and save
@@ -531,18 +544,23 @@ public class TinyDB {
     public void putObject(String key, Object obj) {
         checkForNullKey(key);
         Gson gson = new Gson();
-        putString(key, gson.toJson(obj));
+        String json = gson.toJson(obj);
+        Log.d("TinyDB", "putObject: Saving object for key \"" + key + "\": " + json);
+        putString(key, json);
     }
 
-    public void putListObject(String key, ArrayList<ItemsModel> playerList) {
+
+    public void putListObject(String key, ArrayList<ItemsModel> objectList) {
         checkForNullKey(key);
         Gson gson = new Gson();
-        ArrayList<String> objStrings = new ArrayList<String>();
-        for (ItemsModel player : playerList) {
-            objStrings.add(gson.toJson(player));
+        ArrayList<String> objStrings = new ArrayList<>();
+        for (ItemsModel obj : objectList) {
+            objStrings.add(gson.toJson(obj));
         }
+        Log.d("TinyDB", "putListObject: Saving object list for key \"" + key + "\": " + objStrings);
         putListString(key, objStrings);
     }
+
 
     /**
      * Remove SharedPreferences item with 'key'
@@ -550,8 +568,10 @@ public class TinyDB {
      * @param key SharedPreferences key
      */
     public void remove(String key) {
+        Log.d("TinyDB", "remove: Removing key \"" + key + "\"");
         preferences.edit().remove(key).apply();
     }
+
 
     /**
      * Delete image file at 'path'
@@ -567,8 +587,10 @@ public class TinyDB {
      * Clear SharedPreferences (remove everything)
      */
     public void clear() {
+        Log.d("TinyDB", "clear: Clearing all SharedPreferences data");
         preferences.edit().clear().apply();
     }
+
 
     /**
      * Retrieve all values from SharedPreferences. Do not modify collection return by method
@@ -622,4 +644,6 @@ public class TinyDB {
             throw new NullPointerException();
         }
     }
+
+
 }

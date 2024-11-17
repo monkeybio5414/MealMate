@@ -37,7 +37,7 @@
             android:exported="false"
             android:theme="@style/Theme.MealMate" />
         <activity
-            android:name=".Activity.CartActivity"
+            android:name=".Activity.MealPlanActivity"
             android:exported="false" />
         <activity
             android:name=".Activity.DetailActivity"

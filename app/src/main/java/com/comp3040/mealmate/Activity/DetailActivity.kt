@@ -7,27 +7,14 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,29 +31,29 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import coil.compose.rememberAsyncImagePainter
-import com.example.project1762.Helper.ManagmentCart
+import com.example.project1762.Helper.MealPlanManagement
 import com.comp3040.mealmate.Model.ItemsModel
 import com.comp3040.mealmate.R
 
 class DetailActivity : BaseActivity() {
     private lateinit var item: ItemsModel
-    private lateinit var managmentCart: ManagmentCart
+    private lateinit var mealPlanManagement: MealPlanManagement
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         item = intent.getParcelableExtra("object")!!
-        managmentCart = ManagmentCart(this)
+        mealPlanManagement = MealPlanManagement(this)
 
         setContent {
             DetailScreen(
                 item = item,
                 onBackClick = { finish() },
-                onAddToCartClick = {
-                    item.numberInCart = 1
-                    managmentCart.insertItem(item)
+                onAddToMealPlanClick = {
+                    item.day = "Monday" // Default day or selected day logic
+                    mealPlanManagement.insertItem(item)
                 },
-                onCartClick = {
-                startActivity(Intent(this,CartActivity::class.java))
+                onMealPlanClick = {
+                    startActivity(Intent(this, MealPlanActivity::class.java))
                 }
             )
         }
@@ -77,12 +64,11 @@ class DetailActivity : BaseActivity() {
 fun DetailScreen(
     item: ItemsModel,
     onBackClick: () -> Unit,
-    onAddToCartClick: () -> Unit,
-    onCartClick: () -> Unit
+    onAddToMealPlanClick: () -> Unit,
+    onMealPlanClick: () -> Unit
 ) {
     var selectedImageUrl by remember { mutableStateOf(item.picUrl.first()) }
-    var selectedModelIndex by remember { mutableStateOf(-1) }
-
+    var selectedIngredientIndex by remember { mutableStateOf(-1) }
 
     Column(
         modifier = Modifier
@@ -91,7 +77,6 @@ fun DetailScreen(
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-
         ConstraintLayout(
             modifier = Modifier
                 .padding(top = 36.dp, bottom = 16.dp)
@@ -120,6 +105,7 @@ fun DetailScreen(
                     }
             )
         }
+
         Image(
             painter = rememberAsyncImagePainter(model = selectedImageUrl),
             contentDescription = null,
@@ -132,13 +118,13 @@ fun DetailScreen(
                 )
                 .padding(16.dp)
         )
+
         LazyRow(modifier = Modifier.padding(vertical = 16.dp)) {
             items(item.picUrl) { imageUrl ->
                 ImageThumbnail(
                     imageUrl = imageUrl,
                     isSelected = selectedImageUrl == imageUrl,
                     onClick = { selectedImageUrl = imageUrl }
-
                 )
             }
         }
@@ -155,16 +141,15 @@ fun DetailScreen(
                     .padding(end = 16.dp)
             )
             Text(
-                text = "$${item.price}",
+                text = "${item.calories} kcal",
                 fontSize = 22.sp
             )
         }
-        RatingBar(rating = item.rating)
 
-        ModelSelector(
-            models = item.model,
-            selectedModeIndex = selectedModelIndex,
-            onModelSelected = { selectedModelIndex = it }
+        IngredientsSelector(
+            ingredients = item.ingredients,
+            selectedIngredientIndex = selectedIngredientIndex,
+            onIngredientSelected = { selectedIngredientIndex = it }
         )
 
         Text(
@@ -182,25 +167,24 @@ fun DetailScreen(
             modifier = Modifier.padding(vertical = 8.dp)
         )
 
-        // Display each step in a list
         item.steps.forEach { step ->
             Text(
                 text = step,
                 fontSize = 14.sp,
                 color = Color.Black,
-                modifier = Modifier.padding(vertical = 2.dp) // Padding for each step
+                modifier = Modifier.padding(vertical = 2.dp)
             )
         }
+
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
             Button(
-                onClick = onAddToCartClick,
+                onClick = onAddToMealPlanClick,
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor =
-                    colorResource(R.color.purple)
+                    containerColor = colorResource(R.color.purple)
                 ),
                 modifier = Modifier
                     .weight(1f)
@@ -210,7 +194,7 @@ fun DetailScreen(
                 Text(text = "Add to Meal Plan", fontSize = 18.sp)
             }
             IconButton(
-                onClick = onCartClick,
+                onClick = onMealPlanClick,
                 modifier = Modifier.background(
                     colorResource(R.color.lightGrey),
                     shape = RoundedCornerShape(10.dp)
@@ -218,7 +202,7 @@ fun DetailScreen(
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.btn_4),
-                    contentDescription = "Cart",
+                    contentDescription = "Meal Plan",
                     tint = Color.Black
                 )
             }
@@ -227,64 +211,43 @@ fun DetailScreen(
 }
 
 @Composable
-fun RatingBar(rating: Double) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(top = 16.dp)
-    ) {
-        Text(
-            text = "Ingredients",
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.weight(1f)
-        )
-        Image(
-            painter = painterResource(id = R.drawable.star),
-            contentDescription = null,
-            modifier = Modifier.padding(end = 8.dp)
-        )
-        Text(text = "$rating Rating", style = MaterialTheme.typography.bodyMedium)
-
-    }
-}
-
-@Composable
-fun ModelSelector(
-    models: List<String>, selectedModeIndex: Int,
-    onModelSelected: (Int) -> Unit
+fun IngredientsSelector(
+    ingredients: List<String>, selectedIngredientIndex: Int,
+    onIngredientSelected: (Int) -> Unit
 ) {
     LazyRow(modifier = Modifier.padding(vertical = 8.dp)) {
-        itemsIndexed(models) { index, model ->
-            Box(modifier = Modifier
-                .padding(end = 8.dp)
-                .height(48.dp)
-                .then(
-                    if (index == selectedModeIndex) {
-                        Modifier.border(
-                            1.dp, colorResource(R.color.purple),
-                            RoundedCornerShape(10.dp)
-                        )
-                    } else {
-                        Modifier
-                    }
-                )
-                .background(
-                    if (index == selectedModeIndex) colorResource(R.color.lightPurple) else
-                        colorResource(R.color.lightGrey),
-                    shape = RoundedCornerShape(10.dp)
-                )
-                .clickable { onModelSelected(index) }
-                .padding(horizontal = 16.dp)
+        itemsIndexed(ingredients) { index, ingredient ->
+            Box(
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .height(48.dp)
+                    .then(
+                        if (index == selectedIngredientIndex) {
+                            Modifier.border(
+                                1.dp, colorResource(R.color.purple),
+                                RoundedCornerShape(10.dp)
+                            )
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .background(
+                        if (index == selectedIngredientIndex) colorResource(R.color.lightPurple) else
+                            colorResource(R.color.lightGrey),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    .clickable { onIngredientSelected(index) }
+                    .padding(horizontal = 16.dp)
             ) {
                 Text(
-                    text = model,
+                    text = ingredient,
                     textAlign = TextAlign.Center,
                     fontWeight = FontWeight.Bold,
-                    color = if (index == selectedModeIndex) colorResource(R.color.purple)
+                    color = if (index == selectedIngredientIndex) colorResource(R.color.purple)
                     else colorResource(R.color.black),
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
-
         }
     }
 }
