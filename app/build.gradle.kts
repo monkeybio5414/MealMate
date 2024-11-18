@@ -85,4 +85,6 @@ dependencies {
 
     implementation(platform("com.google.firebase:firebase-bom:32.2.3"))
     implementation("com.google.mlkit:image-labeling:17.0.7")
+    implementation ("com.squareup.okhttp3:logging-interceptor:4.11.0") // Ensure the version matches your OkHttp version
+
 }
