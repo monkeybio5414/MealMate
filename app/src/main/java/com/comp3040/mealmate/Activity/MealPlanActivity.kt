@@ -62,6 +62,12 @@ fun MealPlanScreen(
         currentWeekPlan.addAll(mealPlanManagement.getMealPlan()) // Reload current week plan
     }
 
+    var reassignTrigger by remember { mutableStateOf(0) } // Trigger for LaunchedEffect on reassign
+
+    LaunchedEffect(reassignTrigger) {
+        currentWeekPlan.clear()
+        currentWeekPlan.addAll(mealPlanManagement.getMealPlan()) // Reload after reassign
+    }
 
     Column(
         modifier = Modifier
@@ -219,6 +225,7 @@ fun MealPlanScreen(
                             onReassign = { mealToReassign, selectedDay ->
                                 mealToReassign.day = selectedDay
                                 mealPlanManagement.updateItem(mealToReassign)
+                                reassignTrigger++ // Increment trigger to refresh
                             },
                             onRemove = { mealToRemove ->
                                 mealPlanManagement.removeItem(mealToRemove)
@@ -231,6 +238,7 @@ fun MealPlanScreen(
         }
     }
 }
+
 
 
 @Composable
