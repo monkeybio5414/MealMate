@@ -1,15 +1,13 @@
-<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Add your permissions here -->
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
 
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" /> <!-- Optional, if you need to read images from storage -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
     <application
         android:allowBackup="true"
@@ -21,6 +19,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MealMate"
         tools:targetApi="31">
+
+        <!-- File provider for handling media file sharing -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"
@@ -31,7 +31,17 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- Existing Activities -->
+        <!-- Intro Activity - Launcher -->
+        <activity
+            android:name=".Activity.IntroActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Main Application Activities -->
         <activity
             android:name=".Activity.CameraActivity"
             android:exported="false"
@@ -46,14 +56,6 @@
             android:name=".Activity.ListItemsActivity"
             android:exported="false" />
         <activity
-            android:name=".Activity.IntroActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-        <activity
             android:name=".Activity.BaseActivity"
             android:exported="false" />
         <activity
@@ -62,15 +64,29 @@
             android:label="@string/app_name"
             android:theme="@style/Theme.MealMate" />
 
-        <!-- ProfileActivity -->
+        <!-- Profile Activity -->
         <activity
             android:name=".Activity.ProfileActivity"
             android:exported="false" />
 
-        <!-- ShoppingListActivity -->
+        <!-- Shopping List Activity -->
         <activity
             android:name=".Activity.ShoppingListActivity"
             android:exported="false" />
+
+        <!-- Sign-In Activity -->
+        <activity
+            android:name=".Activity.SignInActivity"
+            android:exported="true"
+            android:label="@string/sign_in"
+            android:theme="@style/Theme.MealMate" />
+
+        <!-- Sign-Up Activity -->
+        <activity
+            android:name=".Activity.SignUpActivity"
+            android:exported="true"
+            android:label="@string/sign_up"
+            android:theme="@style/Theme.MealMate" />
     </application>
 
 </manifest>

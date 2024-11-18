@@ -1,4 +1,5 @@
 package com.comp3040.mealmate.Activity
+import androidx.lifecycle.lifecycleScope
 
 import android.content.Intent
 import android.os.Bundle
@@ -34,43 +35,91 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.comp3040.mealmate.R
+import kotlinx.coroutines.launch
+
 
 class IntroActivity : BaseActivity() {
+
+    // Simulate a method to check if the user is logged in
+    private fun isUserLoggedIn(): Boolean {
+        // Replace with actual authentication logic
+        return getSharedPreferences("MealMatePrefs", MODE_PRIVATE).getBoolean("isLoggedIn", false)
+    }
+
+    // Simulate a method to check if the intro screen has been viewed
+    private fun isIntroSeen(): Boolean {
+        return getSharedPreferences("MealMatePrefs", MODE_PRIVATE).getBoolean("isIntroSeen", false)
+    }
+
+    // Mark the intro screen as seen
+    private fun markIntroAsSeen() {
+        getSharedPreferences("MealMatePrefs", MODE_PRIVATE).edit()
+            .putBoolean("isIntroSeen", true)
+            .apply()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-
+        // Configure window settings
         window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-        window.decorView.systemUiVisibility= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
 
-        setContent {
-            IntroScreen(onClick = {
-                startActivity(Intent(this, MainActivity::class.java))
-            })
+        lifecycleScope.launch {
+            // Check intro status and user login status
+            when {
+                isIntroSeen() -> {
+                    if (isUserLoggedIn()) {
+                        // Navigate to MainActivity if user is logged in
+                        navigateToMain()
+                    } else {
+                        // Navigate to SignInActivity for authentication
+                        navigateToSignIn()
+                    }
+                }
+                else -> {
+                    // Display the intro screen if it hasn't been seen
+                    setContent {
+                        IntroScreen(
+                            onClick = {
+                                markIntroAsSeen()
+                                navigateToSignIn() // Navigate to SignInActivity after intro
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
-}
 
+    private fun navigateToMain() {
+        startActivity(Intent(this, MainActivity::class.java))
+        finish()
+    }
+
+    private fun navigateToSignIn() {
+        startActivity(Intent(this, SignInActivity::class.java))
+        finish()
+    }
+}
 @Composable
 @Preview
-fun IntroScreen(onClick:()->Unit={}) {
+fun IntroScreen(onClick: () -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
             .verticalScroll(rememberScrollState())
             .padding(40.dp),
-
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Image(
             painter = painterResource(id = R.drawable.intro_logo),
             contentDescription = null,
             modifier = Modifier
-                .padding(top=48.dp)
-                .size(300.dp) // Set fixed size
-
+                .padding(top = 48.dp)
+                .size(300.dp)
                 .fillMaxWidth(),
             contentScale = ContentScale.Fit
         )
@@ -87,34 +136,32 @@ fun IntroScreen(onClick:()->Unit={}) {
 
         Text(
             text = stringResource(id = R.string.intro_sub_title),
-            modifier = Modifier.padding(top=16.dp),
+            modifier = Modifier.padding(top = 16.dp),
             color = Color.DarkGray,
             textAlign = TextAlign.Center,
             lineHeight = 24.sp
         )
 
-        Button(onClick = {onClick()},
+        Button(
+            onClick = { onClick() },
             modifier = Modifier
-                .padding(horizontal = 32.dp
-                    , vertical = 16.dp
-                )
+                .padding(horizontal = 32.dp, vertical = 16.dp)
                 .fillMaxWidth()
                 .height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor =
-            colorResource(R.color.purple)),
+            colors = ButtonDefaults.buttonColors(containerColor = colorResource(R.color.purple)),
             shape = RoundedCornerShape(10.dp)
         ) {
             Text(
-                text= stringResource(id= R.string.letgo),
-                color=Color.White,
+                text = stringResource(id = R.string.letgo),
+                color = Color.White,
                 fontSize = 18.sp
             )
         }
 
         Text(
-            text= stringResource(id= R.string.sign),
+            text = stringResource(id = R.string.sign),
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top=16.dp),
+            modifier = Modifier.padding(top = 16.dp),
             fontSize = 18.sp
         )
     }

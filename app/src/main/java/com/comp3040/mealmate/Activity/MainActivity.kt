@@ -66,13 +66,18 @@ import com.comp3040.mealmate.R
 import com.comp3040.mealmate.ViewModel.MainViewModel
 
 import android.util.Log
+import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val email = FirebaseAuth.getInstance().currentUser?.email ?: "Guest"
+        val username = email.substringBefore("@") // Extract username from email
 
         setContent {
             MainActivityScreen(
+                username = username, // Pass the username here
+
                 onCartClick = {
                     startActivity(Intent(this, MealPlanActivity::class.java))
                 },
@@ -108,7 +113,12 @@ class MainActivity : BaseActivity() {
 
 @Composable
 
-fun MainActivityScreen(onCartClick: () -> Unit, onCameraClick: () -> Unit,    onProfileClick: () -> Unit,    onShoppingListClick: () -> Unit
+fun MainActivityScreen(
+    onCartClick: () -> Unit,
+    onCameraClick: () -> Unit,
+    onProfileClick: () -> Unit,
+    onShoppingListClick: () -> Unit,
+    username: String
 
 ) {
     val viewModel = MainViewModel()
@@ -173,28 +183,16 @@ fun MainActivityScreen(onCartClick: () -> Unit, onCameraClick: () -> Unit,    on
                 ) {
                     Column {
                         Text("Welcome Back", color = Color.Black)
-
                         Text(
-                            "Jackie",
+                            text = username, // Use dynamic username
                             color = Color.Black,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Row {
-                        Image(
-                            painter = painterResource(R.drawable.fav_icon),
-                            contentDescription = "",
-
-                            )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Image(
-                            painter = painterResource(R.drawable.search_icon),
-                            contentDescription = "",
-                        )
-                    }
                 }
             }
+
 
             //Banners
             item {
