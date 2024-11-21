@@ -1,7 +1,9 @@
 package com.comp3040.mealmate.Activity
 
+import ShoppingListViewModel
 import android.os.Bundle
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -21,21 +23,44 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.comp3040.mealmate.Model.ShoppingListItem
 import com.comp3040.mealmate.R
 
+
 class ShoppingListActivity : AppCompatActivity() {
+    private val shoppingListViewModel: ShoppingListViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            ShoppingListScreen(onBackClick = { finish() }) // Pass the back button logic
+            ShoppingListScreen(
+                shoppingListViewModel = shoppingListViewModel,
+                onBackClick = { finish() }
+            )
         }
     }
 }
 
 @Composable
-fun ShoppingListScreen(onBackClick: () -> Unit) {
-    var shoppingList by remember { mutableStateOf(mutableListOf<Pair<String, Boolean>>()) }
-    var newItem by remember { mutableStateOf("") }
+fun ShoppingListScreen(
+    shoppingListViewModel: ShoppingListViewModel,
+    onBackClick: () -> Unit
+) {
+    // Observe the shopping list from the ViewModel
+    val shoppingList = shoppingListViewModel.shoppingList
+
+    var newItemName by remember { mutableStateOf("") }
+    var newItemQuantity by remember { mutableStateOf("") }
+    var newItemCategory by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf(false) }
+
+    // List of categories
+    val categories = listOf("Fruits", "Vegetables", "Dairy", "Meat", "Snacks")
+
+    LaunchedEffect(Unit) {
+        // Fetch the shopping list when the screen is loaded
+        shoppingListViewModel.fetchShoppingList()
+    }
 
     Column(
         modifier = Modifier
@@ -78,32 +103,110 @@ fun ShoppingListScreen(onBackClick: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Input Field for Adding Items
+        // Input Fields for Adding Items
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BasicTextField(
-                value = newItem,
-                onValueChange = { newItem = it },
-                textStyle = TextStyle(color = Color.Black, fontSize = 16.sp),
+            // Item Name Input
+            Box(
                 modifier = Modifier
                     .weight(1f)
                     .background(Color.LightGray, shape = MaterialTheme.shapes.small)
-                    .padding(8.dp),
-                keyboardOptions = KeyboardOptions.Default,
-                keyboardActions = KeyboardActions.Default
-            )
+                    .padding(8.dp)
+            ) {
+                if (newItemName.isEmpty()) {
+                    Text(
+                        text = "Item Name",
+                        color = Color.Gray,
+                        fontSize = 16.sp
+                    )
+                }
+                BasicTextField(
+                    value = newItemName,
+                    onValueChange = { newItemName = it },
+                    textStyle = TextStyle(color = Color.Black, fontSize = 16.sp),
+                    keyboardOptions = KeyboardOptions.Default,
+                    keyboardActions = KeyboardActions.Default,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             Spacer(modifier = Modifier.width(8.dp))
 
+            // Quantity Input
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(Color.LightGray, shape = MaterialTheme.shapes.small)
+                    .padding(8.dp)
+            ) {
+                if (newItemQuantity.isEmpty()) {
+                    Text(
+                        text = "Quantity",
+                        color = Color.Gray,
+                        fontSize = 16.sp
+                    )
+                }
+                BasicTextField(
+                    value = newItemQuantity,
+                    onValueChange = { newItemQuantity = it },
+                    textStyle = TextStyle(color = Color.Black, fontSize = 16.sp),
+                    keyboardOptions = KeyboardOptions.Default,
+                    keyboardActions = KeyboardActions.Default,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Category Dropdown
+            Box(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (newItemCategory.isEmpty()) "Select Category" else newItemCategory,
+                    color = if (newItemCategory.isEmpty()) Color.Gray else Color.Black,
+                    fontSize = 16.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.LightGray, shape = MaterialTheme.shapes.small)
+                        .padding(8.dp)
+                        .clickable { expanded = true }
+                )
+
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                ) {
+                    categories.forEach { category ->
+                        DropdownMenuItem(
+                            text = { Text(category) },
+                            onClick = {
+                                newItemCategory = category
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Add Button
             Button(
                 onClick = {
-                    if (newItem.isNotBlank()) {
-                        shoppingList.add(newItem to false)
-                        newItem = ""
+                    if (newItemName.isNotBlank() && newItemQuantity.isNotBlank() && newItemCategory.isNotBlank()) {
+                        shoppingListViewModel.addItemToShoppingList(
+                            ShoppingListItem(
+                                itemName = newItemName,
+                                quantity = newItemQuantity,
+                                category = newItemCategory
+                            )
+                        )
+                        newItemName = ""
+                        newItemQuantity = ""
+                        newItemCategory = ""
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray)
@@ -114,43 +217,45 @@ fun ShoppingListScreen(onBackClick: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // List of Items with Strike-Through Effect
+        // List of Items
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
                 .padding(8.dp)
         ) {
-            shoppingList.forEachIndexed { index, item ->
+            shoppingList.forEach { item ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Checkbox(
+                        checked = item.isChecked,
+                        onCheckedChange = {
+                            shoppingListViewModel.toggleItemChecked(item)
+                        }
+                    )
                     Text(
-                        text = item.first,
+                        text = "${item.itemName} (${item.quantity}) - ${item.category}",
                         color = Color.Black,
                         fontSize = 16.sp,
-                        textDecoration = if (item.second) TextDecoration.LineThrough else null,
+                        textDecoration = if (item.isChecked) TextDecoration.LineThrough else null,
                         modifier = Modifier
                             .weight(1f)
                             .clickable {
-                                // Toggle strike-through effect
-                                shoppingList = shoppingList.toMutableList().apply {
-                                    this[index] = item.first to !item.second
-                                }
+                                // Toggle the item's checked status
+                                shoppingListViewModel.toggleItemChecked(item)
                             }
                     )
-                    // Remove item on click
+                    // Remove item
                     Text(
                         text = "Remove",
                         color = Color.Red,
                         fontSize = 16.sp,
                         modifier = Modifier.clickable {
-                            shoppingList = shoppingList
-                                .filterIndexed { i, _ -> i != index }
-                                .toMutableList()
+                            shoppingListViewModel.removeItemFromShoppingList(item)
                         }
                     )
                 }
@@ -166,11 +271,12 @@ fun ShoppingListScreen(onBackClick: () -> Unit) {
             fontSize = 16.sp,
             modifier = Modifier
                 .clickable {
-                    shoppingList = mutableListOf()
+                    shoppingListViewModel.clearShoppingList()
                 }
                 .padding(8.dp),
             style = TextStyle(fontWeight = FontWeight.Bold)
         )
+
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -184,3 +290,5 @@ fun ShoppingListScreen(onBackClick: () -> Unit) {
         )
     }
 }
+
+
