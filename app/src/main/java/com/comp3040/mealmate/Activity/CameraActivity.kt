@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
@@ -29,9 +30,11 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.lifecycleScope
 import coil.compose.rememberAsyncImagePainter
 import com.comp3040.mealmate.Model.IngredientRecognitionModel
@@ -88,6 +91,28 @@ class CameraActivity : AppCompatActivity() {
         )
     }
 
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CODE_CAMERA_PERMISSION) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission granted, start the camera
+                startCameraScreen()
+            } else {
+                // Permission denied, show a message or handle the case
+                Toast.makeText(
+                    this,
+                    "Camera permission is required to use this feature.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+
     private fun encodeImageToBase64(file: File): String? {
         return try {
             val bytes = FileInputStream(file).use { it.readBytes() }
@@ -128,6 +153,9 @@ class CameraActivity : AppCompatActivity() {
                     recipeSuggestions = emptyList()
                     nutritionalInfo = emptyMap()
                     isRecognizing = false
+
+                    // Reinitialize the camera
+                    imageCapture = null
                 },
                 onUsePhoto = {
                     val capturedFile = File(capturedPhotoUri?.path ?: "")
@@ -136,10 +164,16 @@ class CameraActivity : AppCompatActivity() {
                         lifecycleScope.launch {
                             isRecognizing = true
                             try {
-                                val recognitionResult = ingredientRecognitionModel.recognizeIngredients(base64)
-                                ingredientsList = recognitionResult["Ingredients"] as? List<String> ?: emptyList()
-                                recipeSuggestions = recognitionResult["RecipeSuggestions"] as? List<Map<String, String>> ?: emptyList()
-                                nutritionalInfo = recognitionResult["NutritionalInformation"] as? Map<String, Map<String, Any>> ?: emptyMap()
+                                val recognitionResult =
+                                    ingredientRecognitionModel.recognizeIngredients(base64)
+                                ingredientsList =
+                                    recognitionResult["Ingredients"] as? List<String> ?: emptyList()
+                                recipeSuggestions =
+                                    recognitionResult["RecipeSuggestions"] as? List<Map<String, String>>
+                                        ?: emptyList()
+                                nutritionalInfo =
+                                    recognitionResult["NutritionalInformation"] as? Map<String, Map<String, Any>>
+                                        ?: emptyMap()
                             } catch (e: Exception) {
                                 Log.e(TAG, "Recognition failed: ${e.message}", e)
                             } finally {
@@ -162,7 +196,6 @@ class CameraActivity : AppCompatActivity() {
         }
         return mediaDir ?: filesDir
     }
-
 
 
     @Composable
@@ -229,58 +262,83 @@ class CameraActivity : AppCompatActivity() {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 16.dp),
+                .padding(bottom = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .padding(16.dp)
             ) {
                 Image(
                     painter = rememberAsyncImagePainter(photoUri),
                     contentDescription = "Captured Photo",
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .align(Alignment.Center)
                 )
             }
 
             if (isRecognizing) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                CircularProgressIndicator(modifier = Modifier.padding(16.dp))
             } else {
-                LazyColumn(
+                Box(
                     modifier = Modifier
-                        .weight(1f)
+                        .weight(1f) // Ensure space is allocated for the list
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
                 ) {
-                    item {
-                        Text("Ingredients:", color = Color.Black, modifier = Modifier.padding(8.dp))
-                    }
-                    items(ingredients) { ingredient ->
-                        Text(text = ingredient, color = Color.Black, modifier = Modifier.padding(8.dp))
-                    }
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        item {
+                            Text(
+                                "Ingredients:",
+                                color = Color.Black,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                        items(ingredients) { ingredient ->
+                            Text(
+                                text = ingredient,
+                                color = Color.Black,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
 
-                    item {
-                        Text("Recipe Suggestions:", color = Color.Black, modifier = Modifier.padding(8.dp))
-                    }
-                    items(recipes) { recipe ->
-                        Text(
-                            text = "${recipe["name"]}: ${recipe["description"]}\nLink: ${recipe["link"]}",
-                            color = Color.Black,
-                            modifier = Modifier.padding(8.dp)
-                        )
-                    }
+                        item {
+                            Text(
+                                "Recipe Suggestions:",
+                                color = Color.Black,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                        items(recipes) { recipe ->
+                            Text(
+                                text = "${recipe["name"]}: ${recipe["description"]}\nLink: ${recipe["link"]}",
+                                color = Color.Black,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
 
-                    item {
-                        Text("Nutritional Information:", color = Color.Black, modifier = Modifier.padding(8.dp))
-                    }
-                    items(nutrition.keys.toList()) { ingredient ->
-                        val details = nutrition[ingredient] ?: mapOf()
-                        Text(
-                            text = "$ingredient - Calories: ${details["calories"]}, Protein: ${details["protein"]}g, Fats: ${details["fats"]}g, Vitamins: ${(details["vitamins"] as? List<*>)?.joinToString() ?: "None"}",
-                            color = Color.Black,
-                            modifier = Modifier.padding(8.dp)
-                        )
+                        item {
+                            Text(
+                                "Nutritional Information:",
+                                color = Color.Black,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                        items(nutrition.keys.toList()) { ingredient ->
+                            val details = nutrition[ingredient] ?: mapOf()
+                            Text(
+                                text = "$ingredient - Calories: ${details["calories"]}, Protein: ${details["protein"]}g, Fats: ${details["fats"]}g, Vitamins: ${(details["vitamins"] as? List<*>)?.joinToString() ?: "None"}",
+                                color = Color.Black,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -308,7 +366,6 @@ class CameraActivity : AppCompatActivity() {
     }
 
 
-
     @Composable
     fun CameraPreview(
         onImageCaptured: (Uri) -> Unit,
@@ -317,27 +374,51 @@ class CameraActivity : AppCompatActivity() {
         val context = LocalContext.current
         val previewView = remember { PreviewView(context) }
 
-        if (imageCapture == null) {
+        // Reinitialize the imageCapture object when this composable recomposes
+        val localImageCapture = remember { mutableStateOf<ImageCapture?>(null) }
+
+        if (localImageCapture.value == null) {
             val preview = Preview.Builder().build()
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-            imageCapture = ImageCapture.Builder().build()
+            val newImageCapture = ImageCapture.Builder().build()
+            localImageCapture.value = newImageCapture
 
             val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
             cameraProviderFuture.addListener({
                 val cameraProvider = cameraProviderFuture.get()
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
-                    this,
+                    (context as AppCompatActivity),
                     cameraSelector,
                     preview,
-                    imageCapture
+                    newImageCapture
                 )
                 preview.setSurfaceProvider(previewView.surfaceProvider)
             }, ContextCompat.getMainExecutor(context))
         }
 
         Box(contentAlignment = Alignment.BottomCenter, modifier = Modifier.fillMaxSize()) {
+            // Camera preview
             AndroidView({ previewView }, modifier = Modifier.fillMaxSize())
+
+            // Instructions overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .background(Color.Black.copy(alpha = 0.5f)) // Semi-transparent background
+                    .padding(50.dp)
+            ) {
+                Text(
+                    text = "Instructions: Take a clear photo of your ingredient. Make sure the whole item is in the frame. Supports recognizing multiple ingredients.",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // Snap button
             Button(
                 onClick = {
                     val photoFile = File(
@@ -349,7 +430,7 @@ class CameraActivity : AppCompatActivity() {
                     )
                     val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
-                    imageCapture?.takePicture(
+                    localImageCapture.value?.takePicture(
                         outputOptions,
                         cameraExecutor,
                         object : ImageCapture.OnImageSavedCallback {
@@ -368,7 +449,7 @@ class CameraActivity : AppCompatActivity() {
                     .padding(16.dp)
                     .size(60.dp)
             ) {
-                Text(text = "Snap")
+//                Text("Snap")
             }
         }
     }

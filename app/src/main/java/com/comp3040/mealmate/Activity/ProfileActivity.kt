@@ -34,7 +34,6 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.storage.FirebaseStorage
 
 class ProfileActivity : AppCompatActivity() {
-
     private var selectedImageUri: Uri? = null
     private lateinit var imagePickerLauncher: ActivityResultLauncher<Intent>
     private var profilePictureUrl = mutableStateOf("")
@@ -82,7 +81,10 @@ class ProfileActivity : AppCompatActivity() {
                                 dietaryPreferences = dietaryPreferences,
                                 onLogoutClick = { handleLogout() },
                                 onBackClick = { finish() },
-                                onUploadProfilePictureClick = { launchImagePicker() }
+                                onUploadProfilePictureClick = { launchImagePicker() },
+                                onPreferencesChange = { updatedPreferences ->
+                                    updateDietaryPreferences(userId, updatedPreferences)
+                                }
                             )
                         }
                     }
@@ -90,6 +92,20 @@ class ProfileActivity : AppCompatActivity() {
             }
         }
     }
+
+    private fun updateDietaryPreferences(userId: String, updatedPreferences: List<String>) {
+        val database = FirebaseDatabase.getInstance()
+        val userRef = database.getReference("users").child(userId)
+
+        userRef.child("dietary_preferences").setValue(updatedPreferences)
+            .addOnSuccessListener {
+                Toast.makeText(this, "Preferences updated successfully!", Toast.LENGTH_SHORT).show()
+            }
+            .addOnFailureListener { exception ->
+                Toast.makeText(this, "Failed to update preferences: ${exception.message}", Toast.LENGTH_SHORT).show()
+            }
+    }
+
 
     private fun uploadImageToFirebase(imageUri: Uri, userId: String?) {
         if (userId == null) {
@@ -152,9 +168,9 @@ class ProfileActivity : AppCompatActivity() {
         startActivity(intent)
         finish()
     }
-}
 
-@Composable
+
+}@Composable
 fun ProfileScreen(
     userName: String,
     userEmail: String,
@@ -162,145 +178,203 @@ fun ProfileScreen(
     dietaryPreferences: List<String>,
     onLogoutClick: () -> Unit,
     onBackClick: () -> Unit,
-    onUploadProfilePictureClick: () -> Unit
+    onUploadProfilePictureClick: () -> Unit,
+    onPreferencesChange: (List<String>) -> Unit
 ) {
     var refreshedImageUrl by remember { mutableStateOf(profilePictureUrl) }
+    var expanded by remember { mutableStateOf(false) } // State for dropdown
+    var selectedPreferences by remember { mutableStateOf(dietaryPreferences.toMutableSet()) } // Current selection
+
+    val allPreferences = listOf("None", "Vegan", "Gluten-Free", "Keto", "Vegetarian", "Pescatarian")
 
     LaunchedEffect(profilePictureUrl) {
         refreshedImageUrl = profilePictureUrl
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top
+            .background(Color.White)
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Back Button
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.back),
-                contentDescription = "Back Button",
-                modifier = Modifier
-                    .size(40.dp)
-                    .clickable { onBackClick() }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(40.dp))
-
-        // Profile Image
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(120.dp)
-                .clip(CircleShape)
-                .background(Color.Gray)
-        ) {
-            if (refreshedImageUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = refreshedImageUrl,
-                    contentDescription = "Profile Picture",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Image(
-                    painter = painterResource(id = R.drawable.btn_5),
-                    contentDescription = "Placeholder Profile Image",
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Upload Profile Picture Button
-        Button(
-            onClick = onUploadProfilePictureClick,
-            modifier = Modifier.padding(horizontal = 20.dp)
-        ) {
-            Text(text = "Upload Profile Picture")
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // User Name
-        Text(
-            text = userName,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // User Email
-        Text(
-            text = userEmail,
-            fontSize = 16.sp,
-            color = Color.Gray,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Dietary Preferences Section
-        Text(
-            text = "Dietary Preferences:",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black,
-            modifier = Modifier.padding(horizontal = 10.dp)
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Display Preferences Dynamically
+        // Main Content
         Column(
             modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxSize()
+                .padding(bottom = 80.dp), // Leave space for the logout button
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Top
         ) {
-            if (dietaryPreferences.isEmpty() || dietaryPreferences.contains("None")) {
-                Text(
-                    text = "None",
-                    fontSize = 16.sp,
-                    color = Color.Gray
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Back Button
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.back),
+                    contentDescription = "Back Button",
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clickable { onBackClick() }
                 )
-            } else {
-                dietaryPreferences.forEach { preference ->
+            }
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Profile Image Section
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape)
+                    .background(Color.Gray)
+            ) {
+                if (refreshedImageUrl.isNotEmpty()) {
+                    AsyncImage(
+                        model = refreshedImageUrl,
+                        contentDescription = "Profile Picture",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(id = R.drawable.btn_5),
+                        contentDescription = "Placeholder Profile Image",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Upload Profile Picture Button
+            Button(
+                onClick = onUploadProfilePictureClick,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            ) {
+                Text(text = "Upload Profile Picture")
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // User Info
+            Text(
+                text = userName,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = userEmail,
+                fontSize = 16.sp,
+                color = Color.Gray,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Dietary Preferences Dropdown
+            Text(
+                text = "Dietary Preferences:",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                modifier = Modifier.padding(horizontal = 10.dp)
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Box(modifier = Modifier.padding(16.dp)) {
+                Button(
+                    onClick = { expanded = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray)
+                ) {
+                    Text(text = "Edit Preferences")
+                }
+
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    allPreferences.forEach { preference ->
+                        DropdownMenuItem(
+                            onClick = {
+                                if (preference == "None") {
+                                    selectedPreferences.clear()
+                                    selectedPreferences.add("None")
+                                } else {
+                                    selectedPreferences.remove("None")
+                                    if (selectedPreferences.contains(preference)) {
+                                        selectedPreferences.remove(preference)
+                                    } else {
+                                        selectedPreferences.add(preference)
+                                    }
+                                }
+                                expanded = false
+                            },
+                            text = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = selectedPreferences.contains(preference),
+                                        onCheckedChange = null
+                                    )
+                                    Text(
+                                        text = preference,
+                                        fontSize = 16.sp,
+                                        modifier = Modifier.padding(start = 8.dp)
+                                    )
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Display Selected Preferences
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                selectedPreferences.forEach { preference ->
                     Text(
                         text = preference,
                         fontSize = 16.sp,
                         color = Color.Black,
-                        modifier = Modifier.padding(vertical = 4.dp)
+                        modifier = Modifier.padding(vertical = 2.dp)
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Save Preferences Button
+            Button(
+                onClick = { onPreferencesChange(selectedPreferences.toList()) },
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Green)
+            ) {
+                Text(text = "Save Preferences")
+            }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
-
-
-        // Logout Button fixed to the bottom
+        // Logout Button (Fixed to the Bottom)
         OutlinedButton(
             onClick = onLogoutClick,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 50.dp, vertical = 110.dp)
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 50.dp, vertical = 20.dp)
         ) {
             Text(text = "Logout")
         }
     }
 }
+
+
+
+

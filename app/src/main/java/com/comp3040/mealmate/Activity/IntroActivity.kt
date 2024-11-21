@@ -8,6 +8,7 @@ import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,20 +36,21 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.comp3040.mealmate.R
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
-
 
 class IntroActivity : BaseActivity() {
 
-    // Simulate a method to check if the user is logged in
+    // Check if the user is logged in using FirebaseAuth
     private fun isUserLoggedIn(): Boolean {
-        // Replace with actual authentication logic
-        return getSharedPreferences("MealMatePrefs", MODE_PRIVATE).getBoolean("isLoggedIn", false)
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        return currentUser != null // Return true if a user is logged in
     }
 
-    // Simulate a method to check if the intro screen has been viewed
+    // Check if the intro screen has been viewed
     private fun isIntroSeen(): Boolean {
-        return getSharedPreferences("MealMatePrefs", MODE_PRIVATE).getBoolean("isIntroSeen", false)
+        return getSharedPreferences("MealMatePrefs", MODE_PRIVATE)
+            .getBoolean("isIntroSeen", false)
     }
 
     // Mark the intro screen as seen
@@ -67,27 +69,25 @@ class IntroActivity : BaseActivity() {
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
 
         lifecycleScope.launch {
-            // Check intro status and user login status
-            when {
-                isIntroSeen() -> {
-                    if (isUserLoggedIn()) {
-                        // Navigate to MainActivity if user is logged in
-                        navigateToMain()
-                    } else {
-                        // Navigate to SignInActivity for authentication
-                        navigateToSignIn()
-                    }
+            if (!isIntroSeen()) {
+                // Show the intro screen if it hasn't been seen
+                setContent {
+                    IntroScreen(
+                        onClick = {
+                            markIntroAsSeen()
+                            navigateToSignIn() // Navigate to SignInActivity after intro
+                        },
+                        onSignInClick = {
+                            navigateToSignIn() // Navigate directly to SignInActivity
+                        }
+                    )
                 }
-                else -> {
-                    // Display the intro screen if it hasn't been seen
-                    setContent {
-                        IntroScreen(
-                            onClick = {
-                                markIntroAsSeen()
-                                navigateToSignIn() // Navigate to SignInActivity after intro
-                            }
-                        )
-                    }
+            } else {
+                // If the intro has been seen, check login state
+                if (isUserLoggedIn()) {
+                    navigateToMain() // Navigate to MainActivity if the user is logged in
+                } else {
+                    navigateToSignIn() // Navigate to SignInActivity if not logged in
                 }
             }
         }
@@ -99,13 +99,17 @@ class IntroActivity : BaseActivity() {
     }
 
     private fun navigateToSignIn() {
-        startActivity(Intent(this, SignInActivity::class.java))
+        val intent = Intent(this, SignInActivity::class.java)
+        startActivity(intent)
         finish()
     }
 }
+
 @Composable
-@Preview
-fun IntroScreen(onClick: () -> Unit = {}) {
+fun IntroScreen(
+    onClick: () -> Unit = {},
+    onSignInClick: () -> Unit = {}
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -161,8 +165,12 @@ fun IntroScreen(onClick: () -> Unit = {}) {
         Text(
             text = stringResource(id = R.string.sign),
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 16.dp),
-            fontSize = 18.sp
+            modifier = Modifier
+                .padding(top = 16.dp)
+                .clickable { onSignInClick() }, // Call the onSignInClick lambda
+            fontSize = 18.sp,
+            color = Color.Blue // Highlight text to indicate it's clickable
         )
     }
 }
+
