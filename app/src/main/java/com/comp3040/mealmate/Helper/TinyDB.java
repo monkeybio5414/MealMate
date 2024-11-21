@@ -34,7 +34,7 @@ import android.util.Log;
 
 
 import com.google.gson.Gson;
-import com.comp3040.mealmate.Model.ItemsModel;
+import com.comp3040.mealmate.Model.MealDetailsModel;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -370,14 +370,14 @@ public class TinyDB {
 
     // Put methods
 
-    public ArrayList<ItemsModel> getListObject(String key) {
+    public ArrayList<MealDetailsModel> getListObject(String key) {
         Gson gson = new Gson();
         ArrayList<String> objStrings = getListString(key);
         Log.d("TinyDB", "getListObject: Retrieved serialized objects for key \"" + key + "\": " + objStrings);
 
-        ArrayList<ItemsModel> objectList = new ArrayList<>();
+        ArrayList<MealDetailsModel> objectList = new ArrayList<>();
         for (String objString : objStrings) {
-            ItemsModel obj = gson.fromJson(objString, ItemsModel.class);
+            MealDetailsModel obj = gson.fromJson(objString, MealDetailsModel.class);
             objectList.add(obj);
         }
         Log.d("TinyDB", "getListObject: Deserialized object list for key \"" + key + "\": " + objectList);
@@ -550,11 +550,11 @@ public class TinyDB {
     }
 
 
-    public void putListObject(String key, ArrayList<ItemsModel> objectList) {
+    public void putListObject(String key, ArrayList<MealDetailsModel> objectList) {
         checkForNullKey(key);
         Gson gson = new Gson();
         ArrayList<String> objStrings = new ArrayList<>();
-        for (ItemsModel obj : objectList) {
+        for (MealDetailsModel obj : objectList) {
             objStrings.add(gson.toJson(obj));
         }
         Log.d("TinyDB", "putListObject: Saving object list for key \"" + key + "\": " + objStrings);

@@ -2,7 +2,10 @@ package com.comp3040.mealmate.Activity
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,26 +34,35 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import coil.compose.rememberAsyncImagePainter
-import com.example.project1762.Helper.MealPlanManagement
-import com.comp3040.mealmate.Model.ItemsModel
+import com.comp3040.mealmate.Model.MealDetailsModel
 import com.comp3040.mealmate.R
+import com.comp3040.mealmate.ViewModel.MealPlanViewModel
 
-class DetailActivity : BaseActivity() {
-    private lateinit var item: ItemsModel
-    private lateinit var mealPlanManagement: MealPlanManagement
+
+class DetailActivity : ComponentActivity() {
+    private lateinit var item: MealDetailsModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val mealPlanViewModel: MealPlanViewModel by viewModels()
+
+        // Retrieve the passed MealDetailsModel object
         item = intent.getParcelableExtra("object")!!
-        mealPlanManagement = MealPlanManagement(this)
 
         setContent {
             DetailScreen(
                 item = item,
                 onBackClick = { finish() },
                 onAddToMealPlanClick = {
-                    item.day = "Monday" // Default day or selected day logic
-                    mealPlanManagement.insertItem(item)
+                    // Add the item to the selected day and plan
+                    item.day = "Monday" // Example: Default or selected day logic
+                    mealPlanViewModel.addItemToPlan(item, "plan1") { success ->
+                        if (success) {
+                            Toast.makeText(this, "Item added to meal plan.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this, "Failed to add item to meal plan.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 },
                 onMealPlanClick = {
                     startActivity(Intent(this, MealPlanActivity::class.java))
@@ -60,9 +72,10 @@ class DetailActivity : BaseActivity() {
     }
 }
 
+
 @Composable
 fun DetailScreen(
-    item: ItemsModel,
+    item: MealDetailsModel,
     onBackClick: () -> Unit,
     onAddToMealPlanClick: () -> Unit,
     onMealPlanClick: () -> Unit

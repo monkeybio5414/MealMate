@@ -87,6 +87,8 @@ dependencies {
     implementation("com.google.mlkit:image-labeling:17.0.7")
     implementation ("com.squareup.okhttp3:logging-interceptor:4.11.0")
     implementation(libs.firebase.auth)
-    implementation(libs.firebase.storage.ktx) // Ensure the version matches your OkHttp version
+    implementation(libs.firebase.storage.ktx)
+    implementation(libs.firebase.firestore.ktx) // Ensure the version matches your OkHttp version
+    implementation ("com.google.guava:guava:31.1-android")
 
 }

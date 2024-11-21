@@ -31,11 +31,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat.startActivity
 import coil.compose.AsyncImage
-import com.comp3040.mealmate.Model.ItemsModel
+import com.comp3040.mealmate.Model.MealDetailsModel
 import com.comp3040.mealmate.R
 
 @Composable
-fun ListItems(items: List<ItemsModel>) {
+fun ListItems(items: List<MealDetailsModel>) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         modifier = Modifier
@@ -56,7 +56,7 @@ fun ListItems(items: List<ItemsModel>) {
 }
 
 @Composable
-fun ListItemsFullSize(items: List<ItemsModel>) {
+fun ListItemsFullSize(items: List<MealDetailsModel>) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         modifier = Modifier
@@ -77,7 +77,7 @@ fun ListItemsFullSize(items: List<ItemsModel>) {
 }
 
 @Composable
-fun RecommendedItem(items: List<ItemsModel>, pos: Int) {
+fun RecommendedItem(items: List<MealDetailsModel>, pos: Int) {
     val context = LocalContext.current
     Column(
         modifier = Modifier

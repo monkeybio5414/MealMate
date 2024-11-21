@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
@@ -20,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,7 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -60,7 +57,7 @@ import com.google.accompanist.pager.ExperimentalPagerApi
 import com.google.accompanist.pager.HorizontalPager
 import com.google.accompanist.pager.PagerState
 import com.comp3040.mealmate.Model.CategoryModel
-import com.comp3040.mealmate.Model.ItemsModel
+import com.comp3040.mealmate.Model.MealDetailsModel
 import com.comp3040.mealmate.Model.SliderModel
 import com.comp3040.mealmate.R
 import com.comp3040.mealmate.ViewModel.MainViewModel
@@ -110,53 +107,55 @@ class MainActivity : BaseActivity() {
 
 
 
-
 @Composable
-
 fun MainActivityScreen(
     onCartClick: () -> Unit,
     onCameraClick: () -> Unit,
     onProfileClick: () -> Unit,
     onShoppingListClick: () -> Unit,
     username: String
-
 ) {
     val viewModel = MainViewModel()
     val banners = remember { mutableStateListOf<SliderModel>() }
     val categories = remember { mutableStateListOf<CategoryModel>() }
-    val recommended = remember { mutableStateListOf<ItemsModel>() }
+    val recommended = remember { mutableStateListOf<MealDetailsModel>() }
     var showBannerLoading by remember { mutableStateOf(true) }
     var showCategoryLoading by remember { mutableStateOf(true) }
     var showRecommendedLoading by remember { mutableStateOf(true) }
 
-
-    //Banner
+    // Banner
     LaunchedEffect(Unit) {
+        Log.d("MainActivityScreen", "Loading banners...")
         viewModel.loadBanners()
         viewModel.banners.observeForever {
             banners.clear()
             banners.addAll(it)
             showBannerLoading = false
+            Log.d("MainActivityScreen", "Banners loaded: ${banners.size}")
         }
     }
 
-    //Category
+    // Category
     LaunchedEffect(Unit) {
+        Log.d("MainActivityScreen", "Loading categories...")
         viewModel.loadCategory()
         viewModel.categories.observeForever {
             categories.clear()
             categories.addAll(it)
             showCategoryLoading = false
+            Log.d("MainActivityScreen", "Categories loaded: ${categories.size}")
         }
     }
 
-    //Recommended
+    // Recommended
     LaunchedEffect(Unit) {
+        Log.d("MainActivityScreen", "Loading recommended recipes...")
         viewModel.loadRecommended()
         viewModel.recommended.observeForever {
             recommended.clear()
             recommended.addAll(it)
             showRecommendedLoading = false
+            Log.d("MainActivityScreen", "Recommended recipes loaded: ${recommended.size}")
         }
     }
 
@@ -173,6 +172,7 @@ fun MainActivityScreen(
                 }
         ) {
 
+            // Welcome Section
             item {
                 Row(
                     modifier = Modifier
@@ -193,8 +193,7 @@ fun MainActivityScreen(
                 }
             }
 
-
-            //Banners
+            // Banners
             item {
                 if (showBannerLoading) {
                     Box(
@@ -206,9 +205,12 @@ fun MainActivityScreen(
                         CircularProgressIndicator()
                     }
                 } else {
+                    Log.d("MainActivityScreen", "Displaying banners...")
                     Banners(banners)
                 }
             }
+
+            // Categories
             item {
                 SectionTitle("Categories", "See All")
             }
@@ -223,13 +225,15 @@ fun MainActivityScreen(
                         CircularProgressIndicator()
                     }
                 } else {
+                    Log.d("MainActivityScreen", "Displaying categories...")
                     CategoryList(categories)
                 }
             }
+
+            // Recommended Recipes
             item {
                 SectionTitle("Featured Recipes", "See All")
             }
-
             item {
                 if (showRecommendedLoading) {
                     Box(
@@ -241,13 +245,27 @@ fun MainActivityScreen(
                         CircularProgressIndicator()
                     }
                 } else {
-                    ListItems(recommended)
+                    if (recommended.isEmpty()) {
+                        Log.d("MainActivityScreen", "No recommended recipes found.")
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("No featured recipes available.", color = Color.Gray)
+                        }
+                    } else {
+                        Log.d("MainActivityScreen", "Displaying recommended recipes...")
+                        ListItems(recommended)
+                    }
                 }
             }
+
+            // Spacer
             item {
                 Spacer(modifier = Modifier.height(100.dp))
             }
         }
+
         BottomMenu(
             modifier = Modifier
                 .fillMaxWidth()
@@ -258,11 +276,10 @@ fun MainActivityScreen(
             onCameraClick = onCameraClick, // Pass the onCameraClick parameter
             onProfileClick = onProfileClick,
             onShoppingListClick = onShoppingListClick // Pass Shopping List navigation here
-
         )
     }
-
 }
+
 
 
 @Composable
@@ -306,7 +323,6 @@ fun CategoryItem(item: CategoryModel, isSelected: Boolean, onItemClick: () -> Un
         AsyncImage(
             model = (item.picUrl),
             contentDescription = item.title,
-
             modifier = Modifier
                 .size(45.dp)
                 .background(
@@ -314,11 +330,8 @@ fun CategoryItem(item: CategoryModel, isSelected: Boolean, onItemClick: () -> Un
                     shape = RoundedCornerShape(8.dp)
                 ),
             contentScale = ContentScale.Inside,
-            colorFilter = if (isSelected) {
-                ColorFilter.tint(Color.White)
-            } else {
-                ColorFilter.tint(Color.Black)
-            }
+            colorFilter = null // No tint applied, keeps original color
+
         )
         if (isSelected) {
             Text(
