@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import com.comp3040.mealmate.Model.DayPlan
+import com.comp3040.mealmate.Model.MealPlan
 import com.comp3040.mealmate.R
 import com.comp3040.mealmate.ViewModel.MealPlanViewModel
 
@@ -53,66 +54,87 @@ fun MealPlanScreen(
 ) {
     val currentWeekPlan = mealPlanViewModel.currentWeekPlan
     val savedMealPlans = mealPlanViewModel.savedMealPlans
-    val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    val highlightedPlanId = mealPlanViewModel.highlightedPlanId // Observe highlighted plan ID
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // Header
+    // Fetch and apply highlighted plan when screen is displayed
+    LaunchedEffect(Unit) {
+        if (highlightedPlanId.value == null && savedMealPlans.isNotEmpty()) {
+            val highlightedPlan = savedMealPlans.find { it.highlighted }
+            if (highlightedPlan != null) {
+                mealPlanViewModel.selectSavedPlan(highlightedPlan.planID)
+                mealPlanViewModel.highlightMealPlan(highlightedPlan.planID)
+            } else if (savedMealPlans.isNotEmpty()) {
+                val firstPlan = savedMealPlans.first()
+                mealPlanViewModel.selectSavedPlan(firstPlan.planID)
+                mealPlanViewModel.highlightMealPlan(firstPlan.planID)
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
         MealPlanHeader(onBackClick)
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Save Current Week Plan Button
         Button(
-            onClick = {
-                mealPlanViewModel.saveCurrentWeekAsPlan { success ->
-                    if (!success) {
-//                        Toast.makeText(LocalContext.current, "Failed to save plan", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            },
+            onClick = { mealPlanViewModel.createNewMealPlan() },
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Save Current Week as Plan", fontSize = 18.sp)
+            Text("Create New Meal Plan", fontSize = 18.sp)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Display Saved Meal Plans
-        Text("Saved Meal Plans", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+        Text(
+            "Saved Meal Plans",
+            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
+
         SavedMealPlansSection(
             savedMealPlans = savedMealPlans,
-            onPlanClick = { planName ->
-                mealPlanViewModel.selectSavedPlan(planName) { success ->
-                    if (!success) {
-//                        Toast.makeText(LocalContext.current, "Plan not found.", Toast.LENGTH_SHORT).show()
-                    }
-                }
+            highlightedPlanId = highlightedPlanId.value, // Pass the current highlighted plan ID
+            onPlanClick = { planId ->
+                mealPlanViewModel.highlightMealPlan(planId)
+                mealPlanViewModel.selectSavedPlan(planId)
             },
             onRemovePlan = { planName ->
-                mealPlanViewModel.removePlan(planName) { success ->
-                    if (!success) {
-//                        Toast.makeText(LocalContext.current, "Failed to remove plan.", Toast.LENGTH_SHORT).show()
-                    }
+                mealPlanViewModel.removePlan(planName) {
+                    // Handle removal logic, e.g., a Toast
                 }
             }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Display Current Week Plan
-        Text("This Week's Meal Plan", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
+        Text(
+            "This Week's Meal Plan",
+            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
             items(daysOfWeek) { day ->
                 DayPlanSection(
                     day = day,
                     currentWeekPlan = currentWeekPlan,
                     mealPlanViewModel = mealPlanViewModel,
-                    planId = "plan1" // Replace with the current plan ID dynamically
+                    planId = highlightedPlanId.value ?: "" // Pass the highlighted plan ID
                 )
             }
         }
-
     }
 }
 
@@ -120,45 +142,54 @@ fun MealPlanScreen(
 
 @Composable
 fun SavedMealPlansSection(
-    savedMealPlans: List<String>,
+    savedMealPlans: List<MealPlan>,
+    highlightedPlanId: String?,
     onPlanClick: (String) -> Unit,
     onRemovePlan: (String) -> Unit
 ) {
-    if (savedMealPlans.isEmpty()) {
-        Text(
-            "No saved meal plans available.",
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
-    } else {
-        LazyColumn(modifier = Modifier.fillMaxWidth()) {
-            items(savedMealPlans) { plan ->
-                Row(
+    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+        items(savedMealPlans) { plan ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+                    .background(
+                        color = if (highlightedPlanId == plan.planID) {
+                            colorResource(R.color.highlight)
+                        } else {
+                            colorResource(R.color.lightGrey)
+                        },
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = plan.name,
+                    fontWeight = if (highlightedPlanId == plan.planID) FontWeight.Bold else FontWeight.Normal,
+                    color = if (highlightedPlanId == plan.planID) Color.White else Color.Black,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp)
-                        .background(colorResource(R.color.lightGrey), shape = RoundedCornerShape(10.dp))
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        plan,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { onPlanClick(plan) }
-                    )
-                    Text(
-                        "Remove",
-                        color = Color.Red,
-                        modifier = Modifier.clickable { onRemovePlan(plan) }
-                    )
-                }
+                        .weight(1f)
+                        .clickable {
+                            onPlanClick(plan.planID)
+                        }
+                )
+                Text(
+                    text = "Remove",
+                    color = Color.Red,
+                    modifier = Modifier
+                        .clickable { onRemovePlan(plan.name) }
+                )
             }
         }
     }
 }
+
+
+
+
+
 
 
 
@@ -186,37 +217,50 @@ fun MealPlanHeader(onBackClick: () -> Unit) {
         )
     }
 }
-
 @Composable
 fun DayPlanSection(
     day: String,
     currentWeekPlan: SnapshotStateList<DayPlan>,
     mealPlanViewModel: MealPlanViewModel,
-    planId: String // Pass the current plan ID to identify the original plan
+    planId: String
 ) {
     val mealsForDay = currentWeekPlan.find { it.day == day }?.items ?: emptyList()
-    Log.d("DayPlanSection", "Meals for $day: $mealsForDay")
 
-    if (mealsForDay.isNotEmpty()) {
-        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Text(
+            text = day,
+            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
+
+        if (mealsForDay.isEmpty()) {
             Text(
-                text = day,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
-                modifier = Modifier.padding(vertical = 8.dp)
+                "No meals planned.",
+                color = Color.Gray,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(start = 16.dp)
             )
-
+        } else {
             mealsForDay.forEach { mealTitle ->
                 MealPlanItem(
                     mealTitle = mealTitle,
+                    daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
+                    onReassign = { newDay ->
+                        mealPlanViewModel.reassignMeal(
+                            mealTitle = mealTitle,
+                            oldDay = day,
+                            newDay = newDay,
+                            currentPlan = currentWeekPlan,
+                            planId = planId
+                        )
+                    },
                     onRemove = {
                         val dayPlan = currentWeekPlan.find { it.day == day }
                         if (dayPlan != null) {
                             val updatedItems = dayPlan.items.toMutableList().apply { remove(mealTitle) }
                             val updatedDayPlan = dayPlan.copy(items = updatedItems)
                             currentWeekPlan[currentWeekPlan.indexOf(dayPlan)] = updatedDayPlan
-
-                            // Update the original plan in Firebase
                             mealPlanViewModel.updateOriginalPlan(planId, currentWeekPlan)
                         }
                     }
@@ -225,22 +269,64 @@ fun DayPlanSection(
         }
     }
 }
-
 @Composable
 fun MealPlanItem(
     mealTitle: String,
+    daysOfWeek: List<String>,
+    onReassign: (String) -> Unit,
     onRemove: () -> Unit
 ) {
-    Log.d("MealPlanItem", "Displaying meal item: $mealTitle")
+    var expanded by remember { mutableStateOf(false) }
+    var selectedDay by remember { mutableStateOf("") }
+
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
             .background(colorResource(R.color.lightGrey), shape = RoundedCornerShape(10.dp))
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(mealTitle, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-        Text("Remove", color = Color.Red, modifier = Modifier.clickable { onRemove() })
+        Text(
+            mealTitle,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f)
+        )
+        Box {
+            Text(
+                "Reassign",
+                modifier = Modifier.clickable { expanded = true },
+                color = Color.Blue
+            )
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                daysOfWeek.forEach { day ->
+                    DropdownMenuItem(
+                        onClick = {
+                            selectedDay = day
+                            expanded = false
+                            onReassign(day) // Trigger reassignment immediately
+                        },
+                        text = { Text(text = day) }
+                    )
+                }
+            }
+        }
+        Text(
+            "Remove",
+            color = Color.Red,
+            modifier = Modifier.clickable { onRemove() }
+        )
     }
 }
+
+
+
+
+
+
+
 
 

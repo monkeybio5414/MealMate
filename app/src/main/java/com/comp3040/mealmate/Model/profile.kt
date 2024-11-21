@@ -14,6 +14,7 @@ data class UserModel(
 data class MealPlan(
     var name: String = "", // Meal plan name
     var planID: String = "", // Meal plan ID
-    var meals: List<DayPlan> = emptyList() // List of meals for each day
+    var meals: List<DayPlan> = emptyList(), // List of meals for each day
+    var highlighted: Boolean = false // Indicates if the meal plan is highlighted
 )
 

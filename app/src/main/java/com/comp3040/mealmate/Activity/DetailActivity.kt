@@ -38,7 +38,6 @@ import com.comp3040.mealmate.Model.MealDetailsModel
 import com.comp3040.mealmate.R
 import com.comp3040.mealmate.ViewModel.MealPlanViewModel
 
-
 class DetailActivity : ComponentActivity() {
     private lateinit var item: MealDetailsModel
 
@@ -50,18 +49,22 @@ class DetailActivity : ComponentActivity() {
         item = intent.getParcelableExtra("object")!!
 
         setContent {
+            val highlightedPlan = mealPlanViewModel.savedMealPlans.find { it.highlighted }
+
             DetailScreen(
                 item = item,
                 onBackClick = { finish() },
                 onAddToMealPlanClick = {
-                    // Add the item to the selected day and plan
-                    item.day = "Monday" // Example: Default or selected day logic
-                    mealPlanViewModel.addItemToPlan(item, "plan1") { success ->
-                        if (success) {
-                            Toast.makeText(this, "Item added to meal plan.", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(this, "Failed to add item to meal plan.", Toast.LENGTH_SHORT).show()
+                    if (highlightedPlan != null) {
+                        mealPlanViewModel.addItemToHighlightedPlan(item) { success ->
+                            Toast.makeText(
+                                this,
+                                if (success) "Item added to '${highlightedPlan.name}'." else "Failed to add item.",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
+                    } else {
+                        Toast.makeText(this, "No highlighted plan selected.", Toast.LENGTH_SHORT).show()
                     }
                 },
                 onMealPlanClick = {
@@ -90,135 +93,164 @@ fun DetailScreen(
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        ConstraintLayout(
-            modifier = Modifier
-                .padding(top = 36.dp, bottom = 16.dp)
-                .fillMaxWidth()
-        ) {
-            val (back, fav) = createRefs()
-            Image(
-                painter = painterResource(R.drawable.back),
-                contentDescription = "",
-                modifier = Modifier
-                    .clickable { onBackClick() }
-                    .constrainAs(back) {
-                        top.linkTo(parent.top)
-                        bottom.linkTo(parent.bottom)
-                        start.linkTo(parent.start)
-                    }
-            )
-            Image(
-                painter = painterResource(R.drawable.fav_icon),
-                contentDescription = "",
-                modifier = Modifier
-                    .constrainAs(fav) {
-                        top.linkTo(parent.top)
-                        bottom.linkTo(parent.bottom)
-                        end.linkTo(parent.end)
-                    }
-            )
-        }
+        HeaderSection(onBackClick)
 
+        // Main Image Section
+        MainImageSection(selectedImageUrl, item.picUrl) { selectedImageUrl = it }
+
+        // Meal Details Section
+        MealDetailsSection(item, selectedIngredientIndex) { selectedIngredientIndex = it }
+
+        // Add to Meal Plan and Navigation Buttons
+        ActionButtons(onAddToMealPlanClick, onMealPlanClick)
+    }
+}
+
+@Composable
+fun HeaderSection(onBackClick: () -> Unit) {
+    ConstraintLayout(
+        modifier = Modifier
+            .padding(top = 36.dp, bottom = 16.dp)
+            .fillMaxWidth()
+    ) {
+        val (back, fav) = createRefs()
         Image(
-            painter = rememberAsyncImagePainter(model = selectedImageUrl),
-            contentDescription = null,
+            painter = painterResource(R.drawable.back),
+            contentDescription = "Back",
+            modifier = Modifier
+                .clickable { onBackClick() }
+                .constrainAs(back) {
+                    top.linkTo(parent.top)
+                    bottom.linkTo(parent.bottom)
+                    start.linkTo(parent.start)
+                }
+        )
+        Image(
+            painter = painterResource(R.drawable.fav_icon),
+            contentDescription = "Favorite",
+            modifier = Modifier.constrainAs(fav) {
+                top.linkTo(parent.top)
+                bottom.linkTo(parent.bottom)
+                end.linkTo(parent.end)
+            }
+        )
+    }
+}
+
+@Composable
+fun MainImageSection(
+    selectedImageUrl: String,
+    imageUrls: List<String>,
+    onImageSelected: (String) -> Unit
+) {
+    Image(
+        painter = rememberAsyncImagePainter(model = selectedImageUrl),
+        contentDescription = null,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(290.dp)
+            .background(
+                colorResource(R.color.lightGrey),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(16.dp)
+    )
+
+    LazyRow(modifier = Modifier.padding(vertical = 16.dp)) {
+        items(imageUrls) { imageUrl ->
+            ImageThumbnail(
+                imageUrl = imageUrl,
+                isSelected = selectedImageUrl == imageUrl,
+                onClick = { onImageSelected(imageUrl) }
+            )
+        }
+    }
+}
+
+@Composable
+fun MealDetailsSection(
+    item: MealDetailsModel,
+    selectedIngredientIndex: Int,
+    onIngredientSelected: (Int) -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(top = 16.dp)
+    ) {
+        Text(
+            text = item.title,
+            fontSize = 23.sp,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(290.dp)
-                .background(
-                    colorResource(R.color.lightGrey),
-                    shape = RoundedCornerShape(8.dp)
-                )
-                .padding(16.dp)
+                .weight(1f)
+                .padding(end = 16.dp)
         )
-
-        LazyRow(modifier = Modifier.padding(vertical = 16.dp)) {
-            items(item.picUrl) { imageUrl ->
-                ImageThumbnail(
-                    imageUrl = imageUrl,
-                    isSelected = selectedImageUrl == imageUrl,
-                    onClick = { selectedImageUrl = imageUrl }
-                )
-            }
-        }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 16.dp)
-        ) {
-            Text(
-                text = item.title,
-                fontSize = 23.sp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(end = 16.dp)
-            )
-            Text(
-                text = "${item.calories} kcal",
-                fontSize = 22.sp
-            )
-        }
-
-        IngredientsSelector(
-            ingredients = item.ingredients,
-            selectedIngredientIndex = selectedIngredientIndex,
-            onIngredientSelected = { selectedIngredientIndex = it }
-        )
-
         Text(
-            text = item.description,
+            text = "${item.calories} kcal",
+            fontSize = 22.sp
+        )
+    }
+
+    IngredientsSelector(
+        ingredients = item.ingredients,
+        selectedIngredientIndex = selectedIngredientIndex,
+        onIngredientSelected = onIngredientSelected
+    )
+
+    Text(
+        text = item.description,
+        fontSize = 14.sp,
+        color = Color.Black,
+        modifier = Modifier.padding(vertical = 16.dp)
+    )
+
+    // Preparation Steps
+    Text(
+        text = "Preparation Steps:",
+        fontSize = 16.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(vertical = 8.dp)
+    )
+
+    item.steps.forEach { step ->
+        Text(
+            text = step,
             fontSize = 14.sp,
             color = Color.Black,
-            modifier = Modifier.padding(vertical = 16.dp)
+            modifier = Modifier.padding(vertical = 2.dp)
         )
+    }
+}
 
-        // New Section for Preparation Steps
-        Text(
-            text = "Preparation Steps:",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(vertical = 8.dp)
-        )
-
-        item.steps.forEach { step ->
-            Text(
-                text = step,
-                fontSize = 14.sp,
-                color = Color.Black,
-                modifier = Modifier.padding(vertical = 2.dp)
-            )
-        }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
+@Composable
+fun ActionButtons(onAddToMealPlanClick: () -> Unit, onMealPlanClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Button(
+            onClick = onAddToMealPlanClick,
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = colorResource(R.color.purple)),
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 8.dp)
+                .height(50.dp)
         ) {
-            Button(
-                onClick = onAddToMealPlanClick,
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colorResource(R.color.purple)
-                ),
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(end = 8.dp)
-                    .height(50.dp)
-            ) {
-                Text(text = "Add to Meal Plan", fontSize = 18.sp)
-            }
-            IconButton(
-                onClick = onMealPlanClick,
-                modifier = Modifier.background(
-                    colorResource(R.color.lightGrey),
-                    shape = RoundedCornerShape(10.dp)
-                )
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.btn_4),
-                    contentDescription = "Meal Plan",
-                    tint = Color.Black
-                )
-            }
+            Text(text = "Add to Meal Plan", fontSize = 18.sp)
+        }
+        IconButton(
+            onClick = onMealPlanClick,
+            modifier = Modifier.background(
+                colorResource(R.color.lightGrey),
+                shape = RoundedCornerShape(10.dp)
+            )
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.btn_4),
+                contentDescription = "Meal Plan",
+                tint = Color.Black
+            )
         }
     }
 }
