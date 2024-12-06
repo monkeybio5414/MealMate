@@ -12,8 +12,6 @@ MealMate is an innovative meal planning application designed to streamline meal 
 5. [Architecture](#architecture)
 6. [Technologies Used](#technologies-used)
 7. [Testing](#testing)
-8. [Contributing](#contributing)
-9. [License](#license)
 
 ## Features
 
@@ -85,9 +83,6 @@ MealMate employs a robust testing framework:
 
 Run the tests using Android Studio’s testing tools.
 
-## Contributing
-
-We welcome contributions! To contribute:
 
 1. Fork the repository.
 2. Create a feature branch:
@@ -104,6 +99,3 @@ We welcome contributions! To contribute:
    ```
 5. Open a pull request on GitHub.
 
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
