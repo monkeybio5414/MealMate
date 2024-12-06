@@ -154,7 +154,7 @@ dependencies {
     testImplementation(libs.core.testing.v220)
 
     // LiveData dependencies
-    implementation ("androidx.lifecycle:lifecycle-livedata-ktx:2.6.0")  /
+    implementation ("androidx.lifecycle:lifecycle-livedata-ktx:2.6.0")
 
     // Test dependencies
     testImplementation ("androidx.arch.core:core-testing:2.1.0")
