@@ -4,7 +4,6 @@ import ShoppingListViewModel
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,8 +25,11 @@ import androidx.compose.ui.unit.sp
 import com.comp3040.mealmate.Model.ShoppingListItem
 import com.comp3040.mealmate.R
 
-
-class ShoppingListActivity : AppCompatActivity() {
+/**
+ * ShoppingListActivity is the main activity for managing a user's shopping list.
+ * It includes features for adding, removing, editing, and clearing shopping list items.
+ */
+class ShoppingListActivity : BaseActivity() {
     private val shoppingListViewModel: ShoppingListViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,33 +37,41 @@ class ShoppingListActivity : AppCompatActivity() {
         setContent {
             ShoppingListScreen(
                 shoppingListViewModel = shoppingListViewModel,
-                onBackClick = { finish() }
+                onBackClick = { finish() } // Handles the back navigation
             )
         }
     }
 }
 
+/**
+ * Composable function to render the shopping list screen.
+ * Includes UI for adding items, viewing the list, and managing items.
+ * @param shoppingListViewModel The ViewModel that handles shopping list data and logic.
+ * @param onBackClick A callback triggered when the back button is clicked.
+ */
 @Composable
 fun ShoppingListScreen(
     shoppingListViewModel: ShoppingListViewModel,
     onBackClick: () -> Unit
 ) {
-    // Observe the shopping list from the ViewModel
-    val shoppingList = shoppingListViewModel.shoppingList
-
+    // State variables for input fields
     var newItemName by remember { mutableStateOf("") }
     var newItemQuantity by remember { mutableStateOf("") }
     var newItemCategory by remember { mutableStateOf("") }
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) } // For dropdown menu state
 
-    // List of categories
+    // List of predefined categories
     val categories = listOf("Fruits", "Vegetables", "Dairy", "Meat", "Snacks")
 
+    // Observe the shopping list from the ViewModel
+    val shoppingList = shoppingListViewModel.shoppingList
+
+    // Fetch the shopping list when the screen is loaded
     LaunchedEffect(Unit) {
-        // Fetch the shopping list when the screen is loaded
         shoppingListViewModel.fetchShoppingList()
     }
 
+    // Main layout of the shopping list screen
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -80,7 +90,7 @@ fun ShoppingListScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
-                painter = painterResource(id = R.drawable.back), // Replace with your back button icon
+                painter = painterResource(id = R.drawable.back), // Back button icon
                 contentDescription = "Back Button",
                 modifier = Modifier
                     .size(40.dp)
@@ -217,7 +227,7 @@ fun ShoppingListScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // List of Items
+        // Display List of Shopping Items
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -231,12 +241,14 @@ fun ShoppingListScreen(
                         .padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Checkbox for marking items as checked
                     Checkbox(
                         checked = item.isChecked,
                         onCheckedChange = {
                             shoppingListViewModel.toggleItemChecked(item)
                         }
                     )
+                    // Display item details
                     Text(
                         text = "${item.itemName} (${item.quantity}) - ${item.category}",
                         color = Color.Black,
@@ -245,11 +257,10 @@ fun ShoppingListScreen(
                         modifier = Modifier
                             .weight(1f)
                             .clickable {
-                                // Toggle the item's checked status
                                 shoppingListViewModel.toggleItemChecked(item)
                             }
                     )
-                    // Remove item
+                    // Remove item button
                     Text(
                         text = "Remove",
                         color = Color.Red,
@@ -277,7 +288,6 @@ fun ShoppingListScreen(
             style = TextStyle(fontWeight = FontWeight.Bold)
         )
 
-
         Spacer(modifier = Modifier.height(8.dp))
 
         // Total Items Count
@@ -290,5 +300,3 @@ fun ShoppingListScreen(
         )
     }
 }
-
-

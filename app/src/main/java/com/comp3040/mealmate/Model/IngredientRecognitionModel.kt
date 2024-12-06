@@ -1,34 +1,46 @@
 package com.comp3040.mealmate.Model
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.os.Build
-import android.util.Base64
 import android.util.Log
 import androidx.annotation.RequiresApi
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.logging.HttpLoggingInterceptor
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
-import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
+/**
+ * A model class responsible for ingredient recognition using an external API,
+ * saving photos and recognition results to Firebase, and parsing API responses.
+ *
+ * @param repository An instance of `IngredientRepository` for managing data operations.
+ */
 @RequiresApi(Build.VERSION_CODES.O)
 class IngredientRecognitionModel(private val repository: IngredientRepository) {
 
     companion object {
-        private const val API_URL = "https://api.pumpkinaigc.online/v1/chat/completions"
-        private const val API_KEY = "Bearer sk-53apYwt9DO3KkSZjAeFd0eEcA8Cd4901B7Bf9e9f696aD81a"
-        private const val TAG = "IngredientRecognition" // Tag to search logs
+        private const val API_URL = "https://api.pumpkinaigc.online/v1/chat/completions" // External API endpoint
+        private const val API_KEY = "Bearer sk-53apYwt9DO3KkSZjAeFd0eEcA8Cd4901B7Bf9e9f696aD81a" // API key for authentication
+        private const val TAG = "IngredientRecognition" // Log tag for debugging
     }
 
+    // Firebase database reference for saving and retrieving data
+    private val database: DatabaseReference by lazy {
+        FirebaseDatabase.getInstance().reference
+    }
+
+    // OkHttp client instance with logging and timeout configurations
     private val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .addInterceptor(HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
+                level = HttpLoggingInterceptor.Level.BODY // Logs request and response bodies
             })
             .connectTimeout(3, TimeUnit.MINUTES)
             .writeTimeout(3, TimeUnit.MINUTES)
@@ -36,12 +48,74 @@ class IngredientRecognitionModel(private val repository: IngredientRepository) {
             .build()
     }
 
+    /**
+     * Saves a photo to Firebase with its Base64 representation.
+     * @param base64Image Base64 encoded string of the image.
+     * @param userId The ID of the user uploading the photo.
+     * @return The unique ID of the saved photo or `null` if the save operation failed.
+     */
+    suspend fun savePhoto(base64Image: String, userId: String): String? {
+        val photoId = database.child("Photos").push().key ?: return null
+        val uploadDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(System.currentTimeMillis())
+
+        val photoData = mapOf(
+            "ImageData" to base64Image, // Encoded image data
+            "UploadDate" to uploadDate, // Current upload date
+            "UserId" to userId // Link photo to user
+        )
+
+        return withContext(Dispatchers.IO) {
+            try {
+                database.child("Photos").child(photoId).setValue(photoData).await()
+                Log.d(TAG, "Photo saved successfully with ID: $photoId")
+                photoId
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save photo: ${e.message}", e)
+                null
+            }
+        }
+    }
+
+    /**
+     * Saves the ingredient recognition results to Firebase.
+     * @param photoId The ID of the photo related to the recognition.
+     * @param recognizedIngredients A list of recognized ingredients.
+     * @param userId The ID of the user associated with the recognition.
+     */
+    suspend fun saveRecognitionResults(photoId: String, recognizedIngredients: List<String>, userId: String) {
+        val recognitionId = database.child("RecognitionResults").push().key ?: return
+        val recognitionDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(System.currentTimeMillis())
+
+        val recognitionData = mapOf(
+            "RecognitionDate" to recognitionDate, // Date of recognition
+            "RecognizedIngredients" to recognizedIngredients.mapIndexed { index, ingredient ->
+                (index + 1).toString() to ingredient // Map each ingredient to its position
+            }.toMap(),
+            "UserId" to userId, // User who initiated the recognition
+            "PhotoId" to photoId // Associated photo ID
+        )
+
+        withContext(Dispatchers.IO) {
+            try {
+                database.child("RecognitionResults").child(recognitionId).setValue(recognitionData).await()
+                Log.d(TAG, "Recognition results saved successfully with ID: $recognitionId")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save recognition results: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * Sends a Base64 image to the API for ingredient recognition and parses the response.
+     * @param base64Image Base64 encoded string of the image.
+     * @return A map containing the recognition results or an error message.
+     */
     @RequiresApi(Build.VERSION_CODES.O)
     suspend fun recognizeIngredients(base64Image: String): Map<String, Any> {
         Log.d(TAG, "Starting ingredient recognition.")
         Log.d(TAG, "Base64 image length: ${base64Image.length}")
 
-        // Remove newlines from the Base64 string
+        // Sanitize Base64 string by removing newlines
         val sanitizedBase64Image = base64Image.replace("\n", "")
         Log.d(TAG, "Sanitized Base64 image length: ${sanitizedBase64Image.length}")
 
@@ -54,16 +128,16 @@ class IngredientRecognitionModel(private val repository: IngredientRepository) {
                         "type" to "text",
                         "text" to """
                     List all the ingredients you can identify in this image. Format your response as a structured JSON object with the following fields:
-                    1. **Ingredients**: A list of identified ingredients as strings. If no ingredients are detected, set this to an empty array (e.g., `[]`).
+                    1. **Ingredients**: A list of identified ingredients as strings. If no ingredients are detected, set this to an empty array (e.g., []).
                     2. **RecipeSuggestions**: An array of objects, where each object contains:
-                        - `name`: The name of the recipe.
-                        - `description`: A brief description of the recipe.
-                        - `link`: A URL to the recipe (or `null` if unavailable).
+                        - name: The name of the recipe.
+                        - description: A brief description of the recipe.
+                        - link: A URL to the recipe (or null if unavailable).
                     3. **NutritionalInformation**: A key-value map where each key is an ingredient name and the value is an object with:
-                        - `calories`: Integer value for calories (or `0` if unavailable).
-                        - `protein`: Double value for protein in grams (or `0.0` if unavailable).
-                        - `fats`: Double value for fats in grams (or `0.0` if unavailable).
-                        - `vitamins`: A list of vitamins as strings (or an empty array if unavailable).
+                        - calories: Integer value for calories (or 0 if unavailable).
+                        - protein: Double value for protein in grams (or 0.0 if unavailable).
+                        - fats: Double value for fats in grams (or 0.0 if unavailable).
+                        - vitamins: A list of vitamins as strings (or an empty array if unavailable).
                     Respond with 'No data available' if nothing can be detected in the image.
                     """.trimIndent()
                     ),
@@ -123,7 +197,11 @@ class IngredientRecognitionModel(private val repository: IngredientRepository) {
         }
     }
 
-
+    /**
+     * Parses the API response to extract ingredients, recipes, and nutritional information.
+     * @param responseBody The JSON response from the API.
+     * @return A map containing parsed results or an error message.
+     */
     private fun parseResponse(responseBody: String): Map<String, Any> {
         Log.d(TAG, "Parsing API response for ingredients, recipes, and nutritional information.")
         val result = mutableMapOf<String, Any>()
@@ -146,13 +224,13 @@ class IngredientRecognitionModel(private val repository: IngredientRepository) {
                 return result
             }
 
-            // Extract embedded JSON string (removing backticks and "json" formatting markers)
+            // Extract embedded JSON string
             val embeddedJson = messageContent
                 .replace("```json", "")
                 .replace("```", "")
                 .trim()
 
-            // Parse the embedded JSON string
+            // Parse JSON for ingredients, recipes, and nutritional information
             val embeddedJsonObject = JSONObject(embeddedJson)
 
             // Extract "Ingredients"
@@ -210,10 +288,4 @@ class IngredientRecognitionModel(private val repository: IngredientRepository) {
         Log.d(TAG, "Parsed response: $result")
         return result
     }
-
-
-
 }
-
-
-

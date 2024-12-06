@@ -1,6 +1,7 @@
 package com.comp3040.mealmate.Activity
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -9,6 +10,8 @@ import android.util.Base64
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.Image
@@ -32,6 +35,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
@@ -40,6 +44,8 @@ import coil.compose.rememberAsyncImagePainter
 import com.comp3040.mealmate.Model.IngredientRecognitionModel
 import com.comp3040.mealmate.Model.IngredientRepository
 import com.comp3040.mealmate.R
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.launch
 import okio.IOException
 import java.io.File
@@ -54,7 +60,16 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var cameraExecutor: ExecutorService
     private var imageCapture: ImageCapture? = null
     private var base64EncodedPhoto: String? = null
-    private lateinit var ingredientRecognitionModel: IngredientRecognitionModel
+    private lateinit var database: DatabaseReference
+
+    private lateinit var imagePickerLauncher: ActivityResultLauncher<Intent>
+
+    // MutableStates for UI updates
+    private val galleryPhotoUri = mutableStateOf<Uri?>(null) // State for selected gallery photo
+    private val recognizedIngredients = mutableStateOf<List<String>>(emptyList())
+    private val recipeSuggestions = mutableStateOf<List<Map<String, String>>>(emptyList())
+    private val nutritionalInfo = mutableStateOf<Map<String, Map<String, Any>>>(emptyMap())
+    private val isRecognizing = mutableStateOf(false)
 
     companion object {
         private const val REQUEST_CODE_CAMERA_PERMISSION = 1001
@@ -64,10 +79,20 @@ class CameraActivity : AppCompatActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        database = FirebaseDatabase.getInstance().reference
 
         outputDirectory = getOutputDirectory()
         cameraExecutor = Executors.newSingleThreadExecutor()
-        ingredientRecognitionModel = IngredientRecognitionModel(IngredientRepository())
+
+        imagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK && result.data != null) {
+                val imageUri = result.data?.data
+                imageUri?.let {
+                    galleryPhotoUri.value = it // Update the state with the selected photo
+                    convertImageToBase64(it)  // Convert image to Base64 for recognition
+                }
+            }
+        }
 
         if (isCameraPermissionGranted()) {
             startCameraScreen()
@@ -75,6 +100,89 @@ class CameraActivity : AppCompatActivity() {
             requestCameraPermission()
         }
     }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun performIngredientRecognition() {
+        if (base64EncodedPhoto == null) {
+            Toast.makeText(this, "No photo available for recognition.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        isRecognizing.value = true
+        lifecycleScope.launch {
+            try {
+                val ingredientRecognitionModel = IngredientRecognitionModel(IngredientRepository())
+
+                // Recognize ingredients
+                val recognitionResult = ingredientRecognitionModel.recognizeIngredients(base64EncodedPhoto!!)
+                val ingredients = recognitionResult["Ingredients"] as? List<String> ?: emptyList()
+                val recipes = recognitionResult["RecipeSuggestions"] as? List<Map<String, String>> ?: emptyList()
+
+                // Save photo and recognition results
+                val userId = getCurrentUserId() // Retrieve current user ID
+                val photoId = ingredientRecognitionModel.savePhoto(base64EncodedPhoto!!, userId)
+                if (photoId != null) {
+                    ingredientRecognitionModel.saveRecognitionResults(photoId, ingredients, userId)
+                }
+
+                // Update UI with results
+                recognizedIngredients.value = ingredients
+                recipeSuggestions.value = recipes
+                Toast.makeText(this@CameraActivity, "Recognition completed successfully.", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error recognizing ingredients: ${e.message}", e)
+                Toast.makeText(this@CameraActivity, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                isRecognizing.value = false
+            }
+        }
+    }
+
+
+
+    /**
+     * Retrieves the current user's ID.
+     * This assumes you are using Firebase Authentication.
+     */
+    private fun getCurrentUserId(): String {
+        val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+        return currentUser?.uid ?: "UnknownUser" // Default to "UnknownUser" if not logged in
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun startCameraScreen() {
+        setContent {
+            CameraScreen(
+                shouldShowPhoto = galleryPhotoUri.value != null || base64EncodedPhoto != null, // Include gallery photo condition
+                capturedPhotoUri = galleryPhotoUri.value, // Pass the selected photo URI
+                ingredients = recognizedIngredients.value,
+                recipes = recipeSuggestions.value,
+                nutrition = nutritionalInfo.value,
+                isRecognizing = isRecognizing.value,
+                onImageCaptured = { uri ->
+                    galleryPhotoUri.value = uri
+                    convertImageToBase64(uri)
+                },
+                onRetry = {
+                    base64EncodedPhoto = null
+                    galleryPhotoUri.value = null
+                    recognizedIngredients.value = emptyList()
+                    recipeSuggestions.value = emptyList()
+                    nutritionalInfo.value = emptyMap()
+                },
+                onUsePhoto = {
+                    performIngredientRecognition()
+                },
+                onError = { exception -> Log.e(TAG, "Image capture error: ${exception.message}") },
+                onBackClick = { finish() },
+                cameraExecutor = cameraExecutor,
+                outputDirectory = outputDirectory,
+                onGalleryClick = { launchImagePicker() }
+            )
+        }
+    }
+
+
 
     private fun isCameraPermissionGranted(): Boolean {
         return ContextCompat.checkSelfPermission(
@@ -91,6 +199,7 @@ class CameraActivity : AppCompatActivity() {
         )
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -99,94 +208,14 @@ class CameraActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE_CAMERA_PERMISSION) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Permission granted, start the camera
                 startCameraScreen()
             } else {
-                // Permission denied, show a message or handle the case
                 Toast.makeText(
                     this,
                     "Camera permission is required to use this feature.",
                     Toast.LENGTH_SHORT
                 ).show()
             }
-        }
-    }
-
-
-    private fun encodeImageToBase64(file: File): String? {
-        return try {
-            val bytes = FileInputStream(file).use { it.readBytes() }
-            Base64.encodeToString(bytes, Base64.DEFAULT)
-        } catch (e: IOException) {
-            Log.e(TAG, "Failed to encode image to Base64", e)
-            null
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun startCameraScreen() {
-        setContent {
-            var shouldShowPhoto by remember { mutableStateOf(false) }
-            var capturedPhotoUri by remember { mutableStateOf<Uri?>(null) }
-            var ingredientsList by remember { mutableStateOf<List<String>>(emptyList()) }
-            var recipeSuggestions by remember { mutableStateOf<List<Map<String, String>>>(emptyList()) }
-            var nutritionalInfo by remember { mutableStateOf<Map<String, Map<String, Any>>>(emptyMap()) }
-            var isRecognizing by remember { mutableStateOf(false) }
-
-            CameraScreen(
-                shouldShowPhoto = shouldShowPhoto,
-                capturedPhotoUri = capturedPhotoUri,
-                ingredients = ingredientsList,
-                recipes = recipeSuggestions,
-                nutrition = nutritionalInfo,
-                isRecognizing = isRecognizing,
-                onImageCaptured = { uri ->
-                    capturedPhotoUri = uri
-                    shouldShowPhoto = true
-                    Log.d(TAG, "Photo captured: $uri")
-                },
-                onRetry = {
-                    capturedPhotoUri = null
-                    shouldShowPhoto = false
-                    base64EncodedPhoto = null
-                    ingredientsList = emptyList()
-                    recipeSuggestions = emptyList()
-                    nutritionalInfo = emptyMap()
-                    isRecognizing = false
-
-                    // Reinitialize the camera
-                    imageCapture = null
-                },
-                onUsePhoto = {
-                    val capturedFile = File(capturedPhotoUri?.path ?: "")
-                    base64EncodedPhoto = encodeImageToBase64(capturedFile)
-                    base64EncodedPhoto?.let { base64 ->
-                        lifecycleScope.launch {
-                            isRecognizing = true
-                            try {
-                                val recognitionResult =
-                                    ingredientRecognitionModel.recognizeIngredients(base64)
-                                ingredientsList =
-                                    recognitionResult["Ingredients"] as? List<String> ?: emptyList()
-                                recipeSuggestions =
-                                    recognitionResult["RecipeSuggestions"] as? List<Map<String, String>>
-                                        ?: emptyList()
-                                nutritionalInfo =
-                                    recognitionResult["NutritionalInformation"] as? Map<String, Map<String, Any>>
-                                        ?: emptyMap()
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Recognition failed: ${e.message}", e)
-                            } finally {
-                                isRecognizing = false
-                            }
-                        }
-                    } ?: run { Log.e(TAG, "Base64 encoding failed.") }
-                },
-                onError = { exception ->
-                    Log.e(TAG, "Image capture error: ${exception.message}", exception)
-                },
-                onBackClick = { finish() }
-            )
         }
     }
 
@@ -198,227 +227,289 @@ class CameraActivity : AppCompatActivity() {
     }
 
 
-    @Composable
-    fun CameraScreen(
-        shouldShowPhoto: Boolean,
-        capturedPhotoUri: Uri?,
-        ingredients: List<String>,
-        recipes: List<Map<String, String>>,
-        nutrition: Map<String, Map<String, Any>>,
-        isRecognizing: Boolean,
-        onImageCaptured: (Uri) -> Unit,
-        onRetry: () -> Unit,
-        onUsePhoto: () -> Unit,
-        onError: (ImageCaptureException) -> Unit,
-        onBackClick: () -> Unit
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            if (shouldShowPhoto && capturedPhotoUri != null) {
-                PhotoPreview(
-                    photoUri = capturedPhotoUri,
-                    ingredients = ingredients,  // Corrected parameter
-                    recipes = recipes,          // Corrected parameter
-                    nutrition = nutrition,      // Corrected parameter
-                    isRecognizing = isRecognizing,
-                    onRetry = onRetry,
-                    onUsePhoto = onUsePhoto
-                )
-            } else {
-                CameraPreview(
-                    onImageCaptured = onImageCaptured,
-                    onError = onError
-                )
-            }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .align(Alignment.TopStart),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.back),
-                    contentDescription = "Back Button",
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clickable { onBackClick() }
-                )
+
+
+
+    private fun launchImagePicker() {
+        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            type = "image/*" // Restrict to image files
+        }
+        imagePickerLauncher.launch(intent) // Launch the image picker
+    }
+
+    private fun convertImageToBase64(imageUri: Uri) {
+        lifecycleScope.launch {
+            try {
+                val inputStream = contentResolver.openInputStream(imageUri)
+                val bytes = inputStream?.readBytes()
+                inputStream?.close()
+
+                if (bytes != null) {
+                    base64EncodedPhoto = Base64.encodeToString(bytes, Base64.DEFAULT)
+                    Log.d(TAG, "Base64 Encoded Image: $base64EncodedPhoto")
+                    Toast.makeText(this@CameraActivity, "Image converted to Base64.", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@CameraActivity, "Failed to read image data.", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error converting image to Base64: ${e.message}")
+                Toast.makeText(this@CameraActivity, "Error converting image.", Toast.LENGTH_SHORT).show()
             }
         }
     }
+}
 
 
-    @Composable
-    fun PhotoPreview(
-        photoUri: Uri,
-        ingredients: List<String>,
-        recipes: List<Map<String, String>>,
-        nutrition: Map<String, Map<String, Any>>,
-        isRecognizing: Boolean,
-        onRetry: () -> Unit,
-        onUsePhoto: () -> Unit
-    ) {
-        Column(
+
+
+@Composable
+fun CameraScreen(
+    shouldShowPhoto: Boolean,
+    capturedPhotoUri: Uri?,
+    ingredients: List<String>,
+    recipes: List<Map<String, String>>,
+    nutrition: Map<String, Map<String, Any>>,
+    isRecognizing: Boolean,
+    onImageCaptured: (Uri) -> Unit,
+    onRetry: () -> Unit,
+    onUsePhoto: () -> Unit, // Pass this callback
+    onError: (ImageCaptureException) -> Unit,
+    onBackClick: () -> Unit,
+    cameraExecutor: ExecutorService,
+    outputDirectory: File,
+    onGalleryClick: () -> Unit
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (shouldShowPhoto && capturedPhotoUri != null) {
+            PhotoPreview(
+                photoUri = capturedPhotoUri,
+                ingredients = ingredients,
+                recipes = recipes,
+                nutrition = nutrition,
+                isRecognizing = isRecognizing,
+                onRetry = onRetry,
+                onUsePhoto = onUsePhoto // Pass the callback here
+            )
+        } else {
+            CameraPreview(
+                onImageCaptured = onImageCaptured,
+                onError = onError,
+                cameraExecutor = cameraExecutor,
+                outputDirectory = outputDirectory,
+                onGalleryClick = onGalleryClick
+            )
+        }
+
+        // Back Button
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxWidth()
+                .padding(16.dp)
+                .align(Alignment.TopStart),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
+            Image(
+                painter = painterResource(R.drawable.back),
+                contentDescription = "Back Button",
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Image(
-                    painter = rememberAsyncImagePainter(photoUri),
-                    contentDescription = "Captured Photo",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .align(Alignment.Center)
-                )
-            }
+                    .size(40.dp)
+                    .clickable { onBackClick() }
+            )
+        }
+    }
+}
+@Composable
+fun PhotoPreview(
+    photoUri: Uri,
+    ingredients: List<String>,
+    recipes: List<Map<String, String>>,
+    nutrition: Map<String, Map<String, Any>>,
+    isRecognizing: Boolean,
+    onRetry: () -> Unit,
+    onUsePhoto: () -> Unit
+) {
+    // State to control the visibility of the instruction overlay
+    var showInstruction by remember(photoUri) { mutableStateOf(true) }
 
-            if (isRecognizing) {
-                CircularProgressIndicator(modifier = Modifier.padding(16.dp))
-            } else {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(bottom = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Display the captured or selected image
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Image(
+                painter = rememberAsyncImagePainter(photoUri),
+                contentDescription = "Captured Photo",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .align(Alignment.Center)
+            )
+
+            // Instruction overlay
+            if (showInstruction) {
                 Box(
                     modifier = Modifier
-                        .weight(1f) // Ensure space is allocated for the list
-                        .fillMaxWidth()
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.6F))
+                        .align(Alignment.Center),
+                    contentAlignment = Alignment.Center
                 ) {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                    ) {
-                        item {
-                            Text(
-                                "Ingredients:",
-                                color = Color.Black,
-                                modifier = Modifier.padding(8.dp)
-                            )
-                        }
-                        items(ingredients) { ingredient ->
-                            Text(
-                                text = ingredient,
-                                color = Color.Black,
-                                modifier = Modifier.padding(8.dp)
-                            )
-                        }
+                    Text(
+                        text = "Press 'Use Photo' to recognize the ingredients.",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            }
+        }
 
-                        item {
-                            Text(
-                                "Recipe Suggestions:",
-                                color = Color.Black,
-                                modifier = Modifier.padding(8.dp)
-                            )
-                        }
-                        items(recipes) { recipe ->
-                            Text(
-                                text = "${recipe["name"]}: ${recipe["description"]}\nLink: ${recipe["link"]}",
-                                color = Color.Black,
-                                modifier = Modifier.padding(8.dp)
-                            )
-                        }
+        // Data box with scrolling LazyColumn
+        Box(
+            modifier = Modifier
+                .weight(2f)
+                .fillMaxWidth()
+                .padding(16.dp)
+                .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.medium)
+        ) {
+            if (isRecognizing) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp)
+                ) {
+                    // Ingredients
+                    item {
+                        Text("Ingredients:", style = MaterialTheme.typography.headlineSmall)
+                    }
+                    items(ingredients.ifEmpty { listOf("No ingredients found") }) { ingredient ->
+                        Text(
+                            text = ingredient,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
 
-                        item {
-                            Text(
-                                "Nutritional Information:",
-                                color = Color.Black,
-                                modifier = Modifier.padding(8.dp)
-                            )
-                        }
-                        items(nutrition.keys.toList()) { ingredient ->
-                            val details = nutrition[ingredient] ?: mapOf()
-                            Text(
-                                text = "$ingredient - Calories: ${details["calories"]}, Protein: ${details["protein"]}g, Fats: ${details["fats"]}g, Vitamins: ${(details["vitamins"] as? List<*>)?.joinToString() ?: "None"}",
-                                color = Color.Black,
-                                modifier = Modifier.padding(8.dp)
-                            )
-                        }
+                    // Recipes
+                    item {
+                        Text("Recipes:", style = MaterialTheme.typography.headlineSmall)
+                    }
+                    items(recipes.ifEmpty { listOf(mapOf("name" to "No recipes found", "description" to "")) }) { recipe ->
+                        val recipeName = recipe["name"] ?: "Unnamed Recipe"
+                        val recipeDesc = recipe["description"] ?: "No description available"
+                        Text(
+                            "$recipeName: $recipeDesc",
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
             }
+        }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+        // Retry and Use Photo Buttons
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            Button(onClick = onRetry, modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                Text("Retry")
+            }
+            Button(
+                onClick = {
+                    showInstruction = false // Hide the instruction overlay
+                    onUsePhoto() // Trigger the recognition process
+                },
+                modifier = Modifier.weight(1f).padding(start = 8.dp)
             ) {
-                Button(
-                    onClick = onRetry,
-                    modifier = Modifier.weight(1f).padding(end = 8.dp)
-                ) {
-                    Text(text = "Retry")
-                }
-                Button(
-                    onClick = onUsePhoto,
-                    modifier = Modifier.weight(1f).padding(start = 8.dp)
-                ) {
-                    Text(text = "Use Photo")
-                }
+                Text("Use Photo")
             }
         }
     }
+}
 
 
-    @Composable
-    fun CameraPreview(
-        onImageCaptured: (Uri) -> Unit,
-        onError: (ImageCaptureException) -> Unit
-    ) {
-        val context = LocalContext.current
-        val previewView = remember { PreviewView(context) }
+@Composable
+fun CameraPreview(
+    onImageCaptured: (Uri) -> Unit,
+    onError: (ImageCaptureException) -> Unit,
+    cameraExecutor: ExecutorService,
+    outputDirectory: File,
+    onGalleryClick: () -> Unit // Add this parameter
+) {
+    val context = LocalContext.current
+    val previewView = remember { PreviewView(context) }
 
-        // Reinitialize the imageCapture object when this composable recomposes
-        val localImageCapture = remember { mutableStateOf<ImageCapture?>(null) }
+    val localImageCapture = remember { mutableStateOf<ImageCapture?>(null) }
 
-        if (localImageCapture.value == null) {
-            val preview = Preview.Builder().build()
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-            val newImageCapture = ImageCapture.Builder().build()
-            localImageCapture.value = newImageCapture
+    if (localImageCapture.value == null) {
+        val preview = Preview.Builder().build()
+        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+        val newImageCapture = ImageCapture.Builder().build()
+        localImageCapture.value = newImageCapture
 
-            val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-            cameraProviderFuture.addListener({
-                val cameraProvider = cameraProviderFuture.get()
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
-                    (context as AppCompatActivity),
-                    cameraSelector,
-                    preview,
-                    newImageCapture
-                )
-                preview.setSurfaceProvider(previewView.surfaceProvider)
-            }, ContextCompat.getMainExecutor(context))
-        }
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+        cameraProviderFuture.addListener({
+            val cameraProvider = cameraProviderFuture.get()
+            cameraProvider.unbindAll()
+            cameraProvider.bindToLifecycle(
+                (context as AppCompatActivity),
+                cameraSelector,
+                preview,
+                newImageCapture
+            )
+            preview.setSurfaceProvider(previewView.surfaceProvider)
+        }, ContextCompat.getMainExecutor(context))
+    }
 
-        Box(contentAlignment = Alignment.BottomCenter, modifier = Modifier.fillMaxSize()) {
-            // Camera preview
-            AndroidView({ previewView }, modifier = Modifier.fillMaxSize())
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Camera preview
+        AndroidView({ previewView }, modifier = Modifier.fillMaxSize())
 
-            // Instructions overlay
-            Box(
+        // Text overlay for instructions
+        Text(
+            text = "Instructions:\nTake a clear photo of your ingredient.\nMake sure the whole item is in the frame.\nSupports recognizing multiple ingredients.",
+            color = Color.White,
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .background(Color.Black.copy(alpha = 0.6F)) // Add a semi-transparent background
+                .align(Alignment.TopCenter)
+        )
+
+        // Bottom controls for "Snap" and "Gallery" buttons
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .align(Alignment.BottomCenter),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Gallery Button
+            Button(
+                onClick = { onGalleryClick() }, // Trigger the gallery callback
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .background(Color.Black.copy(alpha = 0.5f)) // Semi-transparent background
-                    .padding(50.dp)
+                    .padding(8.dp)
+                    .weight(1f)
             ) {
-                Text(
-                    text = "Instructions: Take a clear photo of your ingredient. Make sure the whole item is in the frame. Supports recognizing multiple ingredients.",
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Text("Load From Gallery")
             }
 
-            // Snap button
+            // Snap Button
             Button(
                 onClick = {
                     val photoFile = File(
@@ -446,11 +537,15 @@ class CameraActivity : AppCompatActivity() {
                     )
                 },
                 modifier = Modifier
-                    .padding(16.dp)
-                    .size(60.dp)
+                    .padding(8.dp)
+                    .weight(1f)
             ) {
-//                Text("Snap")
+                Text("Snap")
             }
         }
     }
 }
+
+
+
+

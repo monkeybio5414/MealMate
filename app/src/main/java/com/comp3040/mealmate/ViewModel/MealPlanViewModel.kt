@@ -17,19 +17,31 @@ import kotlinx.coroutines.launch
 import com.google.firebase.database.*
 import com.google.firebase.auth.FirebaseAuth
 
+/**
+ * ViewModel for managing meal plans. This ViewModel interacts with Firebase to handle CRUD operations
+ * related to meal plans, highlighting specific plans, and managing daily meals within the plans.
+ */
 class MealPlanViewModel(application: Application) : AndroidViewModel(application) {
+
+    // Firebase Authentication helper to get the current user's ID
     private fun getUserId(): String? {
         return FirebaseAuth.getInstance().currentUser?.uid
     }
 
-    val currentWeekPlan = mutableStateListOf<DayPlan>()
-    val savedMealPlans = mutableStateListOf<MealPlan>()
-    var highlightedPlanId = mutableStateOf<String?>(null)
+    // State variables for managing meal plans
+    val currentWeekPlan = mutableStateListOf<DayPlan>() // Current week's plan (daily meal list)
+    val savedMealPlans = mutableStateListOf<MealPlan>() // All saved meal plans for the user
+    var highlightedPlanId = mutableStateOf<String?>(null) // The ID of the highlighted meal plan
 
+    // Initialize by fetching existing meal plans
     init {
         fetchMealPlans()
     }
 
+    /**
+     * Fetch all meal plans from Firebase for the current user.
+     * Automatically highlights the first plan if none is highlighted.
+     */
     fun fetchMealPlans() {
         val userId = getUserId() ?: return
 
@@ -70,11 +82,12 @@ class MealPlanViewModel(application: Application) : AndroidViewModel(application
         })
     }
 
-
-
-
-
-
+    /**
+     * Highlights the specified meal plan in Firebase.
+     * Only one plan can be highlighted at a time.
+     *
+     * @param planId The ID of the plan to highlight.
+     */
     fun highlightMealPlan(planId: String) {
         val userId = getUserId() ?: return
 
@@ -101,8 +114,10 @@ class MealPlanViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-
-
+    /**
+     * Creates a new meal plan with default values (7 days of empty plans).
+     * Automatically highlights the new plan and resets the highlighting for others.
+     */
     fun createNewMealPlan() {
         val userId = getUserId() ?: return
 
@@ -150,9 +165,12 @@ class MealPlanViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-
-
-
+    /**
+     * Generates a unique name for a new meal plan by appending a suffix to "Plan".
+     *
+     * @param existingNames A list of existing plan names.
+     * @return A unique plan name.
+     */
     private fun generateUniquePlanName(existingNames: List<String>): String {
         var suffix = 1
         var newPlanName: String
@@ -165,10 +183,11 @@ class MealPlanViewModel(application: Application) : AndroidViewModel(application
         return newPlanName
     }
 
-
-
-
-
+    /**
+     * Selects a saved meal plan by its ID and loads the corresponding daily meals into the current week's plan.
+     *
+     * @param planId The ID of the meal plan to select.
+     */
     fun selectSavedPlan(planId: String) {
         val userId = getUserId() ?: return
 
@@ -191,6 +210,14 @@ class MealPlanViewModel(application: Application) : AndroidViewModel(application
             }
         }
     }
+
+    /**
+     * Adds an item (meal) to the highlighted meal plan for a specific day.
+     * If no day is specified, the default day is "Monday".
+     *
+     * @param item The meal details to be added.
+     * @param onComplete Callback to indicate success or failure.
+     */
     fun addItemToHighlightedPlan(item: MealDetailsModel, onComplete: (Boolean) -> Unit) {
         val userId = getUserId() ?: return
 
@@ -202,7 +229,7 @@ class MealPlanViewModel(application: Application) : AndroidViewModel(application
         }
 
         // Default to the first day if no day is specified
-        val targetDay = item.day?.takeIf { it.isNotBlank() } ?: "Monday"
+        val targetDay = item.day.takeIf { it.isNotBlank() } ?: "Monday"
 
         val databaseReference = FirebaseDatabase.getInstance()
             .getReference("users")
@@ -216,7 +243,7 @@ class MealPlanViewModel(application: Application) : AndroidViewModel(application
                 databaseReference.get().addOnSuccessListener { snapshot ->
                     val updatedMeals = snapshot.children.mapNotNull { it.getValue(DayPlan::class.java) }.toMutableList()
 
-                    // Add the item to the first day or specified day
+                    // Add the item to the specified day
                     val dayPlan = updatedMeals.find { it.day == targetDay }
                     if (dayPlan != null) {
                         dayPlan.items = dayPlan.items + item.title
@@ -250,9 +277,12 @@ class MealPlanViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-
-
-
+    /**
+     * Updates an existing meal plan in Firebase with a new list of daily plans.
+     *
+     * @param planId The ID of the meal plan to update.
+     * @param updatedPlan The updated list of daily plans.
+     */
     fun updateOriginalPlan(planId: String, updatedPlan: List<DayPlan>) {
         val userId = getUserId()
         if (userId == null) {
@@ -281,6 +311,17 @@ class MealPlanViewModel(application: Application) : AndroidViewModel(application
             }
         }
     }
+
+    /**
+     * Reassigns a meal from one day to another within the current meal plan.
+     * Updates Firebase with the changes.
+     *
+     * @param mealTitle The title of the meal to reassign.
+     * @param oldDay The day the meal is currently assigned to.
+     * @param newDay The day the meal should be reassigned to.
+     * @param currentPlan The current meal plan.
+     * @param planId The ID of the plan to update.
+     */
     fun reassignMeal(
         mealTitle: String,
         oldDay: String,
@@ -332,7 +373,12 @@ class MealPlanViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-
+    /**
+     * Removes a meal plan by its name. Updates the local list and Firebase accordingly.
+     *
+     * @param planName The name of the meal plan to remove.
+     * @param onComplete Callback to indicate success or failure.
+     */
     fun removePlan(planName: String, onComplete: (Boolean) -> Unit) {
         val userId = getUserId()
         if (userId == null) {
@@ -398,8 +444,5 @@ class MealPlanViewModel(application: Application) : AndroidViewModel(application
             }
         }
     }
-
-
-
-
 }
+

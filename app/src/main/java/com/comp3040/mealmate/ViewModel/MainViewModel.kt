@@ -12,11 +12,14 @@ import com.google.firebase.database.ValueEventListener
 import com.comp3040.mealmate.Model.CategoryModel
 import com.comp3040.mealmate.Model.MealDetailsModel
 import com.comp3040.mealmate.Model.SliderModel
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.database
 
 class MainViewModel : ViewModel() {
-
+    private val databaseReference: DatabaseReference = FirebaseDatabase.getInstance().reference
     private val firebaseDatabase = FirebaseDatabase.getInstance()
 
+    // LiveData for storing categories, banners, and recommended meals
     private val _category = MutableLiveData<MutableList<CategoryModel>>()
     private val _banner = MutableLiveData<List<SliderModel>>()
     private val _recommended = MutableLiveData<MutableList<MealDetailsModel>>()
@@ -25,38 +28,46 @@ class MainViewModel : ViewModel() {
     val categories: LiveData<MutableList<CategoryModel>> = _category
     val recommended: LiveData<MutableList<MealDetailsModel>> = _recommended
 
-    private val TAG = "MainViewModel"
+    private val TAG = "MainViewModel" // Tag for logging purposes
 
-    fun loadFiltered(id: String) {
-        val Ref = firebaseDatabase.getReference("Items")
-        val query: Query = Ref.orderByChild("categoryId").equalTo(id)
-        Log.d(TAG, "loadFiltered: Querying items for categoryId: $id")
+    /**
+     * Loads meals filtered by the given category ID.
+     * @param categoryId The ID of the category to filter meals by.
+     */
+    fun loadFiltered(categoryId: String) {
+        Log.d("MainViewModel", "loadFiltered: Querying items for categoryId: $categoryId")
+        val query =
+            databaseReference.child("MealDetails").orderByChild("categoryId").equalTo(categoryId)
 
-        query.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val lists = mutableListOf<MealDetailsModel>()
-                Log.d(TAG, "loadFiltered: DataSnapshot size: ${snapshot.childrenCount}")
-                for (childSnapshot in snapshot.children) {
-                    val list = childSnapshot.getValue(MealDetailsModel::class.java)
-                    if (list != null) {
-                        lists.add(list)
-                        Log.d(TAG, "loadFiltered: Added item - $list")
-                    } else {
-                        Log.d(TAG, "loadFiltered: Skipped null item")
-                    }
+        query.get().addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                val dataSnapshot = task.result
+                if (dataSnapshot.exists()) {
+                    val items =
+                        dataSnapshot.children.mapNotNull { it.getValue(MealDetailsModel::class.java) }
+                    _recommended.postValue(items.toMutableList())
+                    Log.d("MainViewModel", "Items loaded: ${items.size}")
+                } else {
+                    Log.d("MainViewModel", "No data found for categoryId: $categoryId")
+                    _recommended.postValue(mutableListOf())
                 }
-                _recommended.value = lists
-                Log.d(TAG, "loadFiltered: Total items loaded for categoryId $id: ${lists.size}")
+            } else {
+                Log.e(
+                    "MainViewModel",
+                    "Error querying items for categoryId: $categoryId",
+                    task.exception
+                )
             }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e(TAG, "loadFiltered: Failed to load items for categoryId $id", error.toException())
-            }
-        })
+        }
     }
 
+    /**
+     * Loads all recommended meals where `showRecommended = true`.
+     */
     fun loadRecommended() {
         val Ref = firebaseDatabase.getReference("MealDetails")
+
+        // Log initial data for debugging
         Ref.addListenerForSingleValueEvent(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 snapshot.children.forEach { child ->
@@ -69,44 +80,20 @@ class MainViewModel : ViewModel() {
             }
         })
 
-
+        // Query meals with `showRecommended = true`
         val query: Query = Ref.orderByChild("showRecommended").equalTo(true)
         query.addListenerForSingleValueEvent(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                snapshot.children.forEach { child ->
-                    val showRecommended = child.child("showRecommended").value
-                    Log.d(TAG, "Key: ${child.key}, showRecommended: $showRecommended")
-                }
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e(TAG, "Query failed", error.toException())
-            }
-        })
-
-        Log.d(TAG, "loadRecommended: Querying recommended items...")
-
-        query.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                Log.d(TAG, "loadRecommended: DataSnapshot size: ${snapshot.childrenCount}")
-                if (snapshot.childrenCount.toInt() == 0) {
-                    Log.d(TAG, "loadRecommended: No items found with 'showRecommended = true'")
-                }
-
                 val lists = mutableListOf<MealDetailsModel>()
                 snapshot.children.forEach { childSnapshot ->
                     val list = childSnapshot.getValue(MealDetailsModel::class.java)
                     if (list != null) {
                         lists.add(list)
-                        Log.d(TAG, "loadRecommended: Added item - $list")
-                    } else {
-                        Log.d(TAG, "loadRecommended: Failed to parse item for key: ${childSnapshot.key}")
                     }
                 }
                 _recommended.value = lists
                 Log.d(TAG, "loadRecommended: Total recommended items loaded: ${lists.size}")
             }
-
 
             override fun onCancelled(error: DatabaseError) {
                 Log.e(TAG, "loadRecommended: Failed to load recommended items", error.toException())
@@ -114,21 +101,18 @@ class MainViewModel : ViewModel() {
         })
     }
 
+    /**
+     * Loads all banners from the "Banner" node in Firebase.
+     */
     fun loadBanners() {
         val Ref = firebaseDatabase.getReference("Banner")
-        Log.d(TAG, "loadBanners: Querying banners...")
-
         Ref.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val lists = mutableListOf<SliderModel>()
-                Log.d(TAG, "loadBanners: DataSnapshot size: ${snapshot.childrenCount}")
-                for (childSnapshot in snapshot.children) {
+                snapshot.children.forEach { childSnapshot ->
                     val list = childSnapshot.getValue(SliderModel::class.java)
                     if (list != null) {
                         lists.add(list)
-                        Log.d(TAG, "loadBanners: Added banner - $list")
-                    } else {
-                        Log.d(TAG, "loadBanners: Skipped null banner")
                     }
                 }
                 _banner.value = lists
@@ -141,21 +125,18 @@ class MainViewModel : ViewModel() {
         })
     }
 
+    /**
+     * Loads all categories from the "Category" node in Firebase.
+     */
     fun loadCategory() {
         val Ref = firebaseDatabase.getReference("Category")
-        Log.d(TAG, "loadCategory: Querying categories...")
-
         Ref.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val lists = mutableListOf<CategoryModel>()
-                Log.d(TAG, "loadCategory: DataSnapshot size: ${snapshot.childrenCount}")
-                for (childSnapshot in snapshot.children) {
+                snapshot.children.forEach { childSnapshot ->
                     val list = childSnapshot.getValue(CategoryModel::class.java)
                     if (list != null) {
                         lists.add(list)
-                        Log.d(TAG, "loadCategory: Added category - $list")
-                    } else {
-                        Log.d(TAG, "loadCategory: Skipped null category")
                     }
                 }
                 _category.value = lists
@@ -168,4 +149,3 @@ class MainViewModel : ViewModel() {
         })
     }
 }
-

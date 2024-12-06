@@ -32,31 +32,41 @@ import com.comp3040.mealmate.Model.MealPlan
 import com.comp3040.mealmate.R
 import com.comp3040.mealmate.ViewModel.MealPlanViewModel
 
-
-class MealPlanActivity : ComponentActivity() {
+/**
+ * Activity to manage meal plans. Users can create, view, and manage weekly and saved meal plans.
+ */
+class MealPlanActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Initialize ViewModel for managing meal plan data
         val viewModel: MealPlanViewModel by viewModels()
 
+        // Set the main screen using Jetpack Compose
         setContent {
             MealPlanScreen(
                 mealPlanViewModel = viewModel,
-                onBackClick = { finish() }
+                onBackClick = { finish() } // Close the activity when back is clicked
             )
         }
     }
 }
+
+/**
+ * Composable function to display the meal plan screen.
+ * @param mealPlanViewModel ViewModel to manage meal plan data.
+ * @param onBackClick Action to perform when back button is clicked.
+ */
 @Composable
 fun MealPlanScreen(
     mealPlanViewModel: MealPlanViewModel,
     onBackClick: () -> Unit
 ) {
-    val currentWeekPlan = mealPlanViewModel.currentWeekPlan
-    val savedMealPlans = mealPlanViewModel.savedMealPlans
-    val highlightedPlanId = mealPlanViewModel.highlightedPlanId // Observe highlighted plan ID
+    val currentWeekPlan = mealPlanViewModel.currentWeekPlan // Observe current week's meal plan
+    val savedMealPlans = mealPlanViewModel.savedMealPlans // List of saved meal plans
+    val highlightedPlanId = mealPlanViewModel.highlightedPlanId // Currently highlighted meal plan ID
 
-    // Fetch and apply highlighted plan when screen is displayed
+    // Automatically select a highlighted meal plan when the screen loads
     LaunchedEffect(Unit) {
         if (highlightedPlanId.value == null && savedMealPlans.isNotEmpty()) {
             val highlightedPlan = savedMealPlans.find { it.highlighted }
@@ -76,10 +86,12 @@ fun MealPlanScreen(
             .fillMaxSize()
             .padding(16.dp)
     ) {
+        // Header section with a back button
         MealPlanHeader(onBackClick)
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Button to create a new meal plan
         Button(
             onClick = { mealPlanViewModel.createNewMealPlan() },
             shape = RoundedCornerShape(10.dp),
@@ -90,29 +102,30 @@ fun MealPlanScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Section to display saved meal plans
         Text(
             "Saved Meal Plans",
             fontWeight = FontWeight.Bold,
             fontSize = 20.sp,
             modifier = Modifier.padding(vertical = 8.dp)
         )
-
         SavedMealPlansSection(
             savedMealPlans = savedMealPlans,
-            highlightedPlanId = highlightedPlanId.value, // Pass the current highlighted plan ID
+            highlightedPlanId = highlightedPlanId.value, // Current highlighted plan
             onPlanClick = { planId ->
-                mealPlanViewModel.highlightMealPlan(planId)
-                mealPlanViewModel.selectSavedPlan(planId)
+                mealPlanViewModel.highlightMealPlan(planId) // Highlight selected plan
+                mealPlanViewModel.selectSavedPlan(planId) // Set it as the current plan
             },
             onRemovePlan = { planName ->
                 mealPlanViewModel.removePlan(planName) {
-                    // Handle removal logic, e.g., a Toast
+                    // Optionally handle UI feedback for removal
                 }
             }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Section to display this week's meal plan
         Text(
             "This Week's Meal Plan",
             fontWeight = FontWeight.Bold,
@@ -123,92 +136,48 @@ fun MealPlanScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
+                .weight(1f) // Ensure it takes up remaining vertical space
         ) {
+            // Display meal plan for each day of the week
             val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
             items(daysOfWeek) { day ->
                 DayPlanSection(
                     day = day,
                     currentWeekPlan = currentWeekPlan,
                     mealPlanViewModel = mealPlanViewModel,
-                    planId = highlightedPlanId.value ?: "" // Pass the highlighted plan ID
+                    planId = highlightedPlanId.value ?: "" // Pass highlighted plan ID
                 )
             }
         }
     }
 }
 
-
-
-@Composable
-fun SavedMealPlansSection(
-    savedMealPlans: List<MealPlan>,
-    highlightedPlanId: String?,
-    onPlanClick: (String) -> Unit,
-    onRemovePlan: (String) -> Unit
-) {
-    LazyColumn(modifier = Modifier.fillMaxWidth()) {
-        items(savedMealPlans) { plan ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp)
-                    .background(
-                        color = if (highlightedPlanId == plan.planID) {
-                            colorResource(R.color.highlight)
-                        } else {
-                            colorResource(R.color.lightGrey)
-                        },
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = plan.name,
-                    fontWeight = if (highlightedPlanId == plan.planID) FontWeight.Bold else FontWeight.Normal,
-                    color = if (highlightedPlanId == plan.planID) Color.White else Color.Black,
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable {
-                            onPlanClick(plan.planID)
-                        }
-                )
-                Text(
-                    text = "Remove",
-                    color = Color.Red,
-                    modifier = Modifier
-                        .clickable { onRemovePlan(plan.name) }
-                )
-            }
-        }
-    }
-}
-
-
-
-
-
-
-
-
+/**
+ * Composable to display the header section of the meal plan screen.
+ * @param onBackClick Action for the back button.
+ */
 @Composable
 fun MealPlanHeader(onBackClick: () -> Unit) {
     ConstraintLayout(modifier = Modifier.padding(top = 36.dp)) {
         val (backBtn, titleTxt) = createRefs()
 
+        // Title text
         Text(
-            modifier = Modifier.fillMaxWidth().constrainAs(titleTxt) { centerTo(parent) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .constrainAs(titleTxt) { centerTo(parent) },
             text = "Meal Plans",
             textAlign = TextAlign.Center,
             fontWeight = FontWeight.Bold,
             fontSize = 25.sp
         )
+
+        // Back button
         Image(
             painter = painterResource(R.drawable.back),
             contentDescription = null,
-            modifier = Modifier.clickable { onBackClick() }
+            modifier = Modifier
+                .clickable { onBackClick() }
                 .constrainAs(backBtn) {
                     top.linkTo(parent.top)
                     bottom.linkTo(parent.bottom)
@@ -217,6 +186,14 @@ fun MealPlanHeader(onBackClick: () -> Unit) {
         )
     }
 }
+
+/**
+ * Composable to display a section for a specific day's meal plan.
+ * @param day The day of the week (e.g., Monday, Tuesday).
+ * @param currentWeekPlan Current meal plan for the week.
+ * @param mealPlanViewModel ViewModel to manage meal plan operations.
+ * @param planId The ID of the highlighted meal plan.
+ */
 @Composable
 fun DayPlanSection(
     day: String,
@@ -227,6 +204,7 @@ fun DayPlanSection(
     val mealsForDay = currentWeekPlan.find { it.day == day }?.items ?: emptyList()
 
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        // Day title
         Text(
             text = day,
             fontWeight = FontWeight.Bold,
@@ -235,6 +213,7 @@ fun DayPlanSection(
         )
 
         if (mealsForDay.isEmpty()) {
+            // Display if no meals are planned
             Text(
                 "No meals planned.",
                 color = Color.Gray,
@@ -242,6 +221,7 @@ fun DayPlanSection(
                 modifier = Modifier.padding(start = 16.dp)
             )
         } else {
+            // Display each meal planned for the day
             mealsForDay.forEach { mealTitle ->
                 MealPlanItem(
                     mealTitle = mealTitle,
@@ -269,6 +249,72 @@ fun DayPlanSection(
         }
     }
 }
+/**
+ * Composable to display a list of saved meal plans.
+ * @param savedMealPlans List of saved MealPlan objects.
+ * @param highlightedPlanId ID of the currently highlighted meal plan.
+ * @param onPlanClick Callback when a plan is selected.
+ * @param onRemovePlan Callback when a plan is removed.
+ */
+@Composable
+fun SavedMealPlansSection(
+    savedMealPlans: List<MealPlan>,
+    highlightedPlanId: String?,
+    onPlanClick: (String) -> Unit,
+    onRemovePlan: (String) -> Unit
+) {
+    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+        // Display each saved meal plan in a list
+        items(savedMealPlans) { plan ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+                    .background(
+                        color = if (highlightedPlanId == plan.planID) {
+                            // Highlight the selected plan
+                            colorResource(R.color.highlight)
+                        } else {
+                            // Default color for unselected plans
+                            colorResource(R.color.lightGrey)
+                        },
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Display the name of the meal plan
+                Text(
+                    text = plan.name,
+                    fontWeight = if (highlightedPlanId == plan.planID) FontWeight.Bold else FontWeight.Normal,
+                    color = if (highlightedPlanId == plan.planID) Color.White else Color.Black,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable {
+                            // Handle plan selection
+                            onPlanClick(plan.planID)
+                        }
+                )
+                // "Remove" button to delete the plan
+                Text(
+                    text = "Remove",
+                    color = Color.Red,
+                    modifier = Modifier
+                        .clickable { onRemovePlan(plan.name) }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Composable to display an individual meal item with options to reassign or remove it.
+ * @param mealTitle Title of the meal.
+ * @param daysOfWeek List of days to which the meal can be reassigned.
+ * @param onReassign Callback for reassigning the meal to another day.
+ * @param onRemove Callback for removing the meal from the current day.
+ */
 @Composable
 fun MealPlanItem(
     mealTitle: String,
@@ -276,8 +322,8 @@ fun MealPlanItem(
     onReassign: (String) -> Unit,
     onRemove: () -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    var selectedDay by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf(false) } // Track dropdown menu state
+    var selectedDay by remember { mutableStateOf("") } // Track selected day for reassignment
 
     Row(
         modifier = Modifier
@@ -287,12 +333,14 @@ fun MealPlanItem(
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Display the meal title
         Text(
             mealTitle,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f)
         )
         Box {
+            // Button to open the dropdown menu for reassignment
             Text(
                 "Reassign",
                 modifier = Modifier.clickable { expanded = true },
@@ -300,20 +348,22 @@ fun MealPlanItem(
             )
             DropdownMenu(
                 expanded = expanded,
-                onDismissRequest = { expanded = false }
+                onDismissRequest = { expanded = false } // Close the dropdown on dismiss
             ) {
+                // Dropdown items for each day of the week
                 daysOfWeek.forEach { day ->
                     DropdownMenuItem(
                         onClick = {
-                            selectedDay = day
-                            expanded = false
-                            onReassign(day) // Trigger reassignment immediately
+                            selectedDay = day // Update the selected day
+                            expanded = false // Close the dropdown
+                            onReassign(day) // Trigger reassignment callback
                         },
                         text = { Text(text = day) }
                     )
                 }
             }
         }
+        // "Remove" button to delete the meal
         Text(
             "Remove",
             color = Color.Red,
@@ -321,8 +371,6 @@ fun MealPlanItem(
         )
     }
 }
-
-
 
 
 

@@ -9,14 +9,29 @@ import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+/**
+ * ViewModel to manage the shopping list functionality.
+ * It interacts with Firebase Realtime Database to fetch, add, remove, update, and clear items.
+ */
 class ShoppingListViewModel(application: Application) : AndroidViewModel(application) {
 
+    /**
+     * The local state of the shopping list, stored in a mutable state list for Compose recomposition.
+     */
     val shoppingList = mutableStateListOf<ShoppingListItem>()
 
+    /**
+     * Retrieves the current user's ID from Firebase Authentication.
+     *
+     * @return The user ID if logged in, otherwise `null`.
+     */
     private fun getUserId(): String? {
         return FirebaseAuth.getInstance().currentUser?.uid
     }
 
+    /**
+     * Fetches the shopping list from Firebase Realtime Database and updates the local list.
+     */
     fun fetchShoppingList() {
         val userId = getUserId()
         if (userId == null) {
@@ -24,7 +39,10 @@ class ShoppingListViewModel(application: Application) : AndroidViewModel(applica
             return
         }
 
-        val databaseReference = FirebaseDatabase.getInstance().getReference("users").child(userId).child("shoppingList")
+        val databaseReference = FirebaseDatabase.getInstance()
+            .getReference("users")
+            .child(userId)
+            .child("shoppingList")
 
         databaseReference.get().addOnSuccessListener { snapshot ->
             if (snapshot.exists()) {
@@ -43,6 +61,11 @@ class ShoppingListViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    /**
+     * Adds a new item to the shopping list in Firebase and updates the local list.
+     *
+     * @param item The item to add to the shopping list.
+     */
     fun addItemToShoppingList(item: ShoppingListItem) {
         val userId = getUserId()
         if (userId == null) {
@@ -50,7 +73,10 @@ class ShoppingListViewModel(application: Application) : AndroidViewModel(applica
             return
         }
 
-        val databaseReference = FirebaseDatabase.getInstance().getReference("users").child(userId).child("shoppingList")
+        val databaseReference = FirebaseDatabase.getInstance()
+            .getReference("users")
+            .child(userId)
+            .child("shoppingList")
         val itemId = databaseReference.push().key ?: return // Generate a unique id
 
         val newItem = item.copy(id = itemId) // Add the id to the item
@@ -67,6 +93,11 @@ class ShoppingListViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    /**
+     * Removes an item from the shopping list in Firebase and updates the local list.
+     *
+     * @param item The item to remove.
+     */
     fun removeItemFromShoppingList(item: ShoppingListItem) {
         val userId = getUserId()
         if (userId == null) {
@@ -74,7 +105,10 @@ class ShoppingListViewModel(application: Application) : AndroidViewModel(applica
             return
         }
 
-        val databaseReference = FirebaseDatabase.getInstance().getReference("users").child(userId).child("shoppingList")
+        val databaseReference = FirebaseDatabase.getInstance()
+            .getReference("users")
+            .child(userId)
+            .child("shoppingList")
 
         viewModelScope.launch(Dispatchers.IO) {
             if (item.id.isNotEmpty()) {
@@ -92,6 +126,11 @@ class ShoppingListViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    /**
+     * Toggles the `isChecked` status of an item in the shopping list and updates Firebase.
+     *
+     * @param item The item to toggle.
+     */
     fun toggleItemChecked(item: ShoppingListItem) {
         viewModelScope.launch(Dispatchers.IO) {
             val updatedItem = item.copy(isChecked = !item.isChecked)
@@ -101,24 +140,31 @@ class ShoppingListViewModel(application: Application) : AndroidViewModel(applica
                 shoppingList[index] = updatedItem // Update the list locally
 
                 // Update the database
-                val userId = "your_dynamic_user_id" // Use your dynamic user ID logic
-                val databaseReference = FirebaseDatabase.getInstance()
-                    .getReference("users")
-                    .child(userId)
-                    .child("shoppingList")
-                    .child(item.id)
+                val userId = getUserId()
+                if (userId != null) {
+                    val databaseReference = FirebaseDatabase.getInstance()
+                        .getReference("users")
+                        .child(userId)
+                        .child("shoppingList")
+                        .child(item.id)
 
-                databaseReference.setValue(updatedItem).addOnCompleteListener { task ->
-                    if (task.isSuccessful) {
-                        Log.d("ShoppingListViewModel", "Item ${item.itemName} updated successfully.")
-                    } else {
-                        Log.e("ShoppingListViewModel", "Failed to update item ${item.itemName}.")
+                    databaseReference.setValue(updatedItem).addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            Log.d("ShoppingListViewModel", "Item ${item.itemName} updated successfully.")
+                        } else {
+                            Log.e("ShoppingListViewModel", "Failed to update item ${item.itemName}.")
+                        }
                     }
+                } else {
+                    Log.e("ShoppingListViewModel", "User not logged in, unable to toggle item.")
                 }
             }
         }
     }
 
+    /**
+     * Clears the entire shopping list in Firebase and updates the local list.
+     */
     fun clearShoppingList() {
         val userId = getUserId()
         if (userId == null) {
@@ -126,7 +172,10 @@ class ShoppingListViewModel(application: Application) : AndroidViewModel(applica
             return
         }
 
-        val databaseReference = FirebaseDatabase.getInstance().getReference("users").child(userId).child("shoppingList")
+        val databaseReference = FirebaseDatabase.getInstance()
+            .getReference("users")
+            .child(userId)
+            .child("shoppingList")
 
         viewModelScope.launch(Dispatchers.IO) {
             databaseReference.removeValue().addOnCompleteListener { task ->
@@ -141,6 +190,4 @@ class ShoppingListViewModel(application: Application) : AndroidViewModel(applica
             }
         }
     }
-
-
 }

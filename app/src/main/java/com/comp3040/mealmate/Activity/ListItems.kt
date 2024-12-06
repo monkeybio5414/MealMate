@@ -4,15 +4,7 @@ import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -34,105 +27,126 @@ import coil.compose.AsyncImage
 import com.comp3040.mealmate.Model.MealDetailsModel
 import com.comp3040.mealmate.R
 
+/**
+ * Displays a grid of meal items with fixed dimensions.
+ *
+ * @param items A list of MealDetailsModel containing meal data to be displayed.
+ */
 @Composable
 fun ListItems(items: List<MealDetailsModel>) {
     LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
+        columns = GridCells.Fixed(2), // Define grid with two columns
         modifier = Modifier
-            .height(500.dp)
-            .padding(start = 8.dp, end = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+            .height(500.dp) // Fixed height for the grid
+            .padding(start = 8.dp, end = 8.dp), // Padding for the grid
+        verticalArrangement = Arrangement.spacedBy(16.dp), // Vertical spacing between rows
+        horizontalArrangement = Arrangement.spacedBy(16.dp) // Horizontal spacing between columns
     ) {
-        items(items.size) { row ->
+        items(items.size) { row -> // Iterate through the list of items
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxWidth(), // Fill the width of the grid
+                horizontalArrangement = Arrangement.spacedBy(8.dp) // Space between items
             ) {
-                RecommendedItem(items, row)
+                RecommendedItem(items, row) // Display individual items
             }
         }
     }
 }
 
+/**
+ * Displays a grid of meal items that fills the available space.
+ *
+ * @param items A list of MealDetailsModel containing meal data to be displayed.
+ */
 @Composable
 fun ListItemsFullSize(items: List<MealDetailsModel>) {
     LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
+        columns = GridCells.Fixed(2), // Define grid with two columns
         modifier = Modifier
-            .fillMaxSize()
-            .padding(start = 8.dp, end = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+            .fillMaxSize() // Fill the available space
+            .padding(start = 8.dp, end = 8.dp), // Padding for the grid
+        verticalArrangement = Arrangement.spacedBy(16.dp), // Vertical spacing between rows
+        horizontalArrangement = Arrangement.spacedBy(16.dp) // Horizontal spacing between columns
     ) {
-        items(items.size) { row ->
+        items(items.size) { row -> // Iterate through the list of items
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxWidth(), // Fill the width of the grid
+                horizontalArrangement = Arrangement.spacedBy(8.dp) // Space between items
             ) {
-                RecommendedItem(items, row)
+                RecommendedItem(items, row) // Display individual items
             }
         }
     }
 }
 
+/**
+ * Displays a single meal item with an image, title, rating, and calorie information.
+ *
+ * @param items The list of MealDetailsModel containing meal data.
+ * @param pos The position of the item to display.
+ */
 @Composable
 fun RecommendedItem(items: List<MealDetailsModel>, pos: Int) {
-    val context = LocalContext.current
+    val context = LocalContext.current // Get the current context for navigation
     Column(
         modifier = Modifier
-            .padding(8.dp)
-            .height(225.dp)
+            .padding(8.dp) // Padding around the item
+            .width(175.dp) // Fixed width for consistency
+            .height(225.dp) // Fixed height for the item
     ) {
+        // Display the meal image
         AsyncImage(
-            model = items[pos].picUrl.firstOrNull(),
-            contentDescription = items[pos].title,
+            model = items[pos].picUrl.firstOrNull(), // Load the first image URL
+            contentDescription = items[pos].title, // Provide a description for accessibility
             modifier = Modifier
-                .width(175.dp)
-                .background(colorResource(R.color.lightGrey), shape = RoundedCornerShape(10.dp))
-                .height(175.dp)
-                .padding(8.dp)
-                .clickable {
+                .width(175.dp) // Fixed width for the image
+                .height(175.dp) // Fixed height for the image
+                .clip(RoundedCornerShape(10.dp)) // Rounded corners for the image
+                .clickable { // Navigate to the detail screen when clicked
                     val intent = Intent(context, DetailActivity::class.java).apply {
-                        putExtra("object", items[pos])
+                        putExtra("object", items[pos]) // Pass the item data to the detail screen
                     }
-                    startActivity(context, intent, null)
+                    startActivity(context, intent, null) // Start the detail activity
                 },
-            contentScale = ContentScale.Inside
+            contentScale = ContentScale.Crop // Crop the image to fill the container
         )
+        // Display the meal title
         Text(
-            text = items[pos].title,
-            color = Color.Black,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 8.dp)
+            text = items[pos].title, // Meal title
+            color = Color.Black, // Text color
+            fontSize = 16.sp, // Font size
+            fontWeight = FontWeight.Bold, // Bold font weight
+            maxLines = 1, // Restrict to one line
+            overflow = TextOverflow.Ellipsis, // Truncate text if it overflows
+            modifier = Modifier.padding(top = 8.dp) // Padding above the title
         )
+        // Display rating and calories
         Row(
             modifier = Modifier
                 .padding(top = 4.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+                .fillMaxWidth(), // Fill the width of the container
+            horizontalArrangement = Arrangement.SpaceBetween // Space out elements
         ) {
+            // Rating display
             Row {
                 Image(
-                    painter = painterResource(id = R.drawable.star),
-                    contentDescription = "Rating",
-                    modifier = Modifier.align(Alignment.CenterVertically)
+                    painter = painterResource(id = R.drawable.star), // Star icon for rating
+                    contentDescription = "Rating", // Accessibility description
+                    modifier = Modifier.align(Alignment.CenterVertically) // Align vertically
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(4.dp)) // Space between the star and rating text
                 Text(
-                    text = items[pos].rating.toString(),
-                    color = Color.Black,
-                    fontSize = 15.sp
+                    text = items[pos].rating.toString(), // Display the rating
+                    color = Color.Black, // Text color
+                    fontSize = 15.sp // Font size
                 )
             }
+            // Calorie display
             Text(
-                text = "${items[pos].calories} kcal",
-                color = colorResource(R.color.purple),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
+                text = "${items[pos].calories} kcal", // Display the calorie information
+                color = colorResource(R.color.purple), // Purple color for emphasis
+                fontSize = 16.sp, // Font size
+                fontWeight = FontWeight.Bold // Bold font weight
             )
         }
     }

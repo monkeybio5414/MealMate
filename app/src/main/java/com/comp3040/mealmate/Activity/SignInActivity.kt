@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.setContent
-import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -17,16 +16,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 
-class SignInActivity : AppCompatActivity() {
+/**
+ * Activity for user sign-in.
+ * Handles authentication using FirebaseAuth and navigates to other activities on success or failure.
+ */
+class SignInActivity : BaseActivity() {
 
-    private lateinit var auth: FirebaseAuth
+    private lateinit var authWrapper: FirebaseAuthWrapper // Wrapper for FirebaseAuth
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialize Firebase Auth
-        auth = FirebaseAuth.getInstance()
+        // Initialize FirebaseAuthWrapper
+        authWrapper = FirebaseAuthWrapper(FirebaseAuth.getInstance())
 
+        // Set up the content with the SignInScreen composable
         setContent {
             SignInScreen(
                 onSignIn = { email, password -> handleSignIn(email, password) },
@@ -35,17 +39,20 @@ class SignInActivity : AppCompatActivity() {
         }
     }
 
-    private fun handleSignIn(email: String, password: String) {
+    // Setter method to inject a mock FirebaseAuthWrapper for testing
+    fun setFirebaseAuthWrapper(wrapper: FirebaseAuthWrapper) {
+        this.authWrapper = wrapper
+    }
+
+    fun handleSignIn(email: String, password: String) {
         if (email.isNotBlank() && password.isNotBlank()) {
-            auth.signInWithEmailAndPassword(email, password)
+            authWrapper.signIn(email, password)
                 .addOnCompleteListener(this) { task ->
                     if (task.isSuccessful) {
-                        // Sign-in success
                         Toast.makeText(this, "Sign-In Successful!", Toast.LENGTH_SHORT).show()
                         startActivity(Intent(this, MainActivity::class.java))
                         finish()
                     } else {
-                        // If sign-in fails
                         Toast.makeText(
                             this,
                             "Sign-In Failed: ${task.exception?.message}",
@@ -63,6 +70,16 @@ class SignInActivity : AppCompatActivity() {
     }
 }
 
+
+
+
+/**
+ * Composable function for rendering the sign-in screen.
+ * Provides UI elements for user authentication, including fields for email and password,
+ * a sign-in button, and a sign-up option.
+ * @param onSignIn A callback to handle sign-in with email and password.
+ * @param onSignUp A callback to navigate to the sign-up screen.
+ */
 @Composable
 fun SignInScreen(onSignIn: (String, String) -> Unit, onSignUp: () -> Unit) {
     var email by remember { mutableStateOf("") }
@@ -81,7 +98,6 @@ fun SignInScreen(onSignIn: (String, String) -> Unit, onSignUp: () -> Unit) {
             modifier = Modifier.padding(bottom = 24.dp)
         )
 
-        // Email Field
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
@@ -96,7 +112,6 @@ fun SignInScreen(onSignIn: (String, String) -> Unit, onSignUp: () -> Unit) {
                 .padding(bottom = 16.dp)
         )
 
-        // Password Field
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
@@ -111,7 +126,6 @@ fun SignInScreen(onSignIn: (String, String) -> Unit, onSignUp: () -> Unit) {
                 .padding(bottom = 16.dp)
         )
 
-        // Sign-In Button
         Button(
             onClick = { onSignIn(email, password) },
             modifier = Modifier
@@ -123,9 +137,11 @@ fun SignInScreen(onSignIn: (String, String) -> Unit, onSignUp: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Sign-Up Option
         TextButton(onClick = onSignUp) {
             Text("Don't have an account? Sign Up")
         }
     }
 }
+
+
+

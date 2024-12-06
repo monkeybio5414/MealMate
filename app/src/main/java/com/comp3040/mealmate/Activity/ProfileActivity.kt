@@ -1,5 +1,6 @@
 package com.comp3040.mealmate.Activity
 
+// Required imports
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -33,38 +34,50 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.storage.FirebaseStorage
 
-class ProfileActivity : AppCompatActivity() {
-    private var selectedImageUri: Uri? = null
-    private lateinit var imagePickerLauncher: ActivityResultLauncher<Intent>
-    private var profilePictureUrl = mutableStateOf("")
+/**
+ * ProfileActivity is responsible for managing user profile information.
+ * This includes:
+ * - Displaying user details (name, email, profile picture).
+ * - Editing dietary preferences.
+ * - Uploading and updating the profile picture in Firebase Storage.
+ * - Logging out the user.
+ */
+class ProfileActivity : BaseActivity() {
+    private var selectedImageUri: Uri? = null // Stores the URI of the selected profile image
+    private lateinit var imagePickerLauncher: ActivityResultLauncher<Intent> // Handles image selection
+    private var profilePictureUrl = mutableStateOf("") // State to hold the profile picture URL
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Get user authentication details
         val auth = FirebaseAuth.getInstance()
         val userId = auth.currentUser?.uid
         val email = auth.currentUser?.email ?: "Guest@example.com"
-        val userName = email.substringBefore("@")
+        val userName = email.substringBefore("@") // Extract username from email
 
-        // Initialize Image Picker
+        // Initialize image picker for selecting a new profile picture
         imagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK && result.data != null) {
                 selectedImageUri = result.data?.data
                 selectedImageUri?.let {
-                    uploadImageToFirebase(it, userId)
+                    uploadImageToFirebase(it, userId) // Upload the selected image to Firebase
                 }
             }
         }
 
+        // If user is authenticated, fetch profile details and dietary preferences
         if (userId != null) {
             val database = FirebaseDatabase.getInstance()
             val userRef = database.getReference("users").child(userId)
 
-            val defaultPreferences = listOf("None")
+            val defaultPreferences = listOf("None") // Default dietary preferences if none exist
 
+            // Fetch profile picture URL
             userRef.child("profile_picture").get().addOnSuccessListener { snapshot ->
                 profilePictureUrl.value = snapshot.getValue(String::class.java) ?: ""
 
+                // Fetch dietary preferences
                 userRef.child("dietary_preferences").get().addOnSuccessListener { dietarySnapshot ->
                     val dietaryPreferences = if (dietarySnapshot.exists()) {
                         dietarySnapshot.children.mapNotNull { it.getValue(String::class.java) }
@@ -72,6 +85,7 @@ class ProfileActivity : AppCompatActivity() {
                         defaultPreferences
                     }
 
+                    // Set the content of the activity using Jetpack Compose
                     setContent {
                         MaterialTheme {
                             ProfileScreen(
@@ -93,6 +107,11 @@ class ProfileActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Updates dietary preferences for the authenticated user in the Firebase Realtime Database.
+     * @param userId The ID of the user.
+     * @param updatedPreferences The updated list of dietary preferences.
+     */
     private fun updateDietaryPreferences(userId: String, updatedPreferences: List<String>) {
         val database = FirebaseDatabase.getInstance()
         val userRef = database.getReference("users").child(userId)
@@ -106,7 +125,11 @@ class ProfileActivity : AppCompatActivity() {
             }
     }
 
-
+    /**
+     * Uploads a profile image to Firebase Storage and updates the user's profile picture URL.
+     * @param imageUri The URI of the selected image.
+     * @param userId The ID of the authenticated user.
+     */
     private fun uploadImageToFirebase(imageUri: Uri, userId: String?) {
         if (userId == null) {
             Log.e("ProfileActivity", "Error: User not authenticated.")
@@ -115,45 +138,41 @@ class ProfileActivity : AppCompatActivity() {
         }
 
         val storageRef = FirebaseStorage.getInstance().reference.child("profile_pictures/$userId.jpg")
-        Log.d("ProfileActivity", "Firebase Storage Path: profile_pictures/$userId.jpg")
-
         val uploadTask = storageRef.putFile(imageUri)
 
         uploadTask
             .addOnSuccessListener {
-                Log.d("ProfileActivity", "Image uploaded successfully.")
-                storageRef.downloadUrl
-                    .addOnSuccessListener { downloadUrl ->
-                        Log.d("ProfileActivity", "Download URL obtained: $downloadUrl")
-                        updateProfilePictureInDatabase(userId, downloadUrl.toString())
-                        profilePictureUrl.value = downloadUrl.toString() // Update state
-                    }
-                    .addOnFailureListener { exception ->
-                        Log.e("ProfileActivity", "Failed to get download URL: ${exception.message}")
-                        Toast.makeText(this, "Failed to get download URL: ${exception.message}", Toast.LENGTH_SHORT).show()
-                    }
-            }
-            .addOnFailureListener { exception ->
-                Log.e("ProfileActivity", "Image upload failed: ${exception.message}")
+                storageRef.downloadUrl.addOnSuccessListener { downloadUrl ->
+                    updateProfilePictureInDatabase(userId, downloadUrl.toString())
+                    profilePictureUrl.value = downloadUrl.toString()
+                }.addOnFailureListener { exception ->
+                    Toast.makeText(this, "Failed to get download URL: ${exception.message}", Toast.LENGTH_SHORT).show()
+                }
+            }.addOnFailureListener { exception ->
                 Toast.makeText(this, "Image upload failed: ${exception.message}", Toast.LENGTH_SHORT).show()
             }
     }
 
+    /**
+     * Updates the profile picture URL in the Firebase Realtime Database.
+     * @param userId The ID of the authenticated user.
+     * @param downloadUrl The URL of the uploaded profile picture.
+     */
     private fun updateProfilePictureInDatabase(userId: String, downloadUrl: String) {
         val database = FirebaseDatabase.getInstance()
         val userRef = database.getReference("users").child(userId)
 
         userRef.child("profile_picture").setValue(downloadUrl)
             .addOnSuccessListener {
-                Log.d("ProfileActivity", "Profile picture updated successfully in Realtime Database.")
                 Toast.makeText(this, "Profile picture updated successfully.", Toast.LENGTH_SHORT).show()
-            }
-            .addOnFailureListener { exception ->
-                Log.e("ProfileActivity", "Failed to update profile picture in database: ${exception.message}")
+            }.addOnFailureListener { exception ->
                 Toast.makeText(this, "Failed to update profile picture: ${exception.message}", Toast.LENGTH_SHORT).show()
             }
     }
 
+    /**
+     * Launches an intent to pick an image from the device storage.
+     */
     private fun launchImagePicker() {
         val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
             type = "image/*"
@@ -161,6 +180,9 @@ class ProfileActivity : AppCompatActivity() {
         imagePickerLauncher.launch(intent)
     }
 
+    /**
+     * Logs out the user and redirects to the IntroActivity.
+     */
     private fun handleLogout() {
         FirebaseAuth.getInstance().signOut()
         val intent = Intent(this, IntroActivity::class.java)
@@ -168,9 +190,21 @@ class ProfileActivity : AppCompatActivity() {
         startActivity(intent)
         finish()
     }
+}
 
-
-}@Composable
+/**
+ * Composable function for rendering the profile screen.
+ * Displays user details, dietary preferences, and options for updating profile information.
+ * @param userName The user's name.
+ * @param userEmail The user's email address.
+ * @param profilePictureUrl URL of the user's profile picture.
+ * @param dietaryPreferences The user's dietary preferences.
+ * @param onLogoutClick Callback triggered when the user clicks the logout button.
+ * @param onBackClick Callback triggered when the user clicks the back button.
+ * @param onUploadProfilePictureClick Callback triggered when the user uploads a new profile picture.
+ * @param onPreferencesChange Callback triggered when the user updates dietary preferences.
+ */
+@Composable
 fun ProfileScreen(
     userName: String,
     userEmail: String,
@@ -181,26 +215,27 @@ fun ProfileScreen(
     onUploadProfilePictureClick: () -> Unit,
     onPreferencesChange: (List<String>) -> Unit
 ) {
-    var refreshedImageUrl by remember { mutableStateOf(profilePictureUrl) }
-    var expanded by remember { mutableStateOf(false) } // State for dropdown
-    var selectedPreferences by remember { mutableStateOf(dietaryPreferences.toMutableSet()) } // Current selection
+    var refreshedImageUrl by remember { mutableStateOf(profilePictureUrl) } // To handle profile picture updates
+    var expanded by remember { mutableStateOf(false) } // State for dropdown menu
+    var selectedPreferences by remember { mutableStateOf(dietaryPreferences.toMutableSet()) } // Current dietary preferences
 
-    val allPreferences = listOf("None", "Vegan", "Gluten-Free", "Keto", "Vegetarian", "Pescatarian")
+    val allPreferences = listOf("None", "Vegan", "Gluten-Free", "Keto", "Vegetarian", "Pescatarian") // Options for preferences
 
+    // Update the displayed image URL when the profile picture changes
     LaunchedEffect(profilePictureUrl) {
         refreshedImageUrl = profilePictureUrl
     }
 
+    // Main layout for the profile screen
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(Color.White) // Background color
     ) {
-        // Main Content
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 80.dp), // Leave space for the logout button
+                .padding(bottom = 80.dp), // Space for the logout button
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
@@ -224,7 +259,7 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // Profile Image Section
+            // Profile Picture Section
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -233,6 +268,7 @@ fun ProfileScreen(
                     .background(Color.Gray)
             ) {
                 if (refreshedImageUrl.isNotEmpty()) {
+                    // Display user's profile picture
                     AsyncImage(
                         model = refreshedImageUrl,
                         contentDescription = "Profile Picture",
@@ -240,6 +276,7 @@ fun ProfileScreen(
                         contentScale = ContentScale.Crop
                     )
                 } else {
+                    // Display placeholder image if no profile picture is available
                     Image(
                         painter = painterResource(id = R.drawable.btn_5),
                         contentDescription = "Placeholder Profile Image",
@@ -260,7 +297,7 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // User Info
+            // User Info Section
             Text(
                 text = userName,
                 fontSize = 24.sp,
@@ -279,7 +316,7 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Dietary Preferences Dropdown
+            // Dietary Preferences Section
             Text(
                 text = "Dietary Preferences:",
                 fontSize = 20.sp,
@@ -289,6 +326,7 @@ fun ProfileScreen(
             )
             Spacer(modifier = Modifier.height(10.dp))
 
+            // Dropdown to Edit Preferences
             Box(modifier = Modifier.padding(16.dp)) {
                 Button(
                     onClick = { expanded = true },
@@ -299,15 +337,18 @@ fun ProfileScreen(
 
                 DropdownMenu(
                     expanded = expanded,
-                    onDismissRequest = { expanded = false }
+                    onDismissRequest = { expanded = false } // Close the dropdown when dismissed
                 ) {
+                    // Display all available preferences
                     allPreferences.forEach { preference ->
                         DropdownMenuItem(
                             onClick = {
                                 if (preference == "None") {
+                                    // If "None" is selected, clear other preferences
                                     selectedPreferences.clear()
                                     selectedPreferences.add("None")
                                 } else {
+                                    // Toggle preference selection
                                     selectedPreferences.remove("None")
                                     if (selectedPreferences.contains(preference)) {
                                         selectedPreferences.remove(preference)
@@ -318,9 +359,7 @@ fun ProfileScreen(
                                 expanded = false
                             },
                             text = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Checkbox(
                                         checked = selectedPreferences.contains(preference),
                                         onCheckedChange = null
@@ -362,7 +401,7 @@ fun ProfileScreen(
             }
         }
 
-        // Logout Button (Fixed to the Bottom)
+        // Logout Button Fixed at the Bottom
         OutlinedButton(
             onClick = onLogoutClick,
             modifier = Modifier
@@ -374,6 +413,7 @@ fun ProfileScreen(
         }
     }
 }
+
 
 
 

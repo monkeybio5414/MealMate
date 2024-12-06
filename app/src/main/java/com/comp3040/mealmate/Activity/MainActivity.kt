@@ -63,14 +63,17 @@ import com.comp3040.mealmate.R
 import com.comp3040.mealmate.ViewModel.MainViewModel
 
 import android.util.Log
+import androidx.activity.viewModels
 import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : BaseActivity() {
+    private val viewModel: MainViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val email = FirebaseAuth.getInstance().currentUser?.email ?: "Guest"
         val username = email.substringBefore("@") // Extract username from email
-
+// Call the function to update the database on app start
         setContent {
             MainActivityScreen(
                 username = username, // Pass the username here
@@ -102,9 +105,45 @@ class MainActivity : BaseActivity() {
             )
         }
     }
+
+
+
 }
 
 
+@Composable
+fun WelcomeSection(username: String, onForumClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 48.dp, start = 16.dp, end = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Forum icon on the left
+        Icon(
+            painter = painterResource(R.drawable.forum), // Replace with your search icon resource
+            contentDescription = "Forum",
+            modifier = Modifier
+                .size(60.dp)
+                .clickable {
+                    onForumClick()
+                },
+            tint = Color.Unspecified // Prevents any tint from being applied
+        )
+
+        // Welcome message on the right
+        Column(horizontalAlignment = Alignment.End) {
+            Text("Welcome Back", color = Color.Black)
+            Text(
+                text = username, // Use dynamic username
+                color = Color.Black,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
 
 
 @Composable
@@ -122,6 +161,7 @@ fun MainActivityScreen(
     var showBannerLoading by remember { mutableStateOf(true) }
     var showCategoryLoading by remember { mutableStateOf(true) }
     var showRecommendedLoading by remember { mutableStateOf(true) }
+    val context = LocalContext.current
 
     // Banner
     LaunchedEffect(Unit) {
@@ -174,22 +214,9 @@ fun MainActivityScreen(
 
             // Welcome Section
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 48.dp, start = 16.dp, end = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Welcome Back", color = Color.Black)
-                        Text(
-                            text = username, // Use dynamic username
-                            color = Color.Black,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                WelcomeSection(username = username) {
+                    val intent = Intent(context, ForumActivity::class.java)
+                    context.startActivity(intent)
                 }
             }
 
@@ -210,10 +237,11 @@ fun MainActivityScreen(
                 }
             }
 
-            // Categories
+// Categories
             item {
-                SectionTitle("Categories", "See All")
+                SectionTitle("Categories")
             }
+
             item {
                 if (showCategoryLoading) {
                     Box(
@@ -230,9 +258,9 @@ fun MainActivityScreen(
                 }
             }
 
-            // Recommended Recipes
+// Recommended Recipes
             item {
-                SectionTitle("Featured Recipes", "See All")
+                SectionTitle("Featured Recipes")
             }
             item {
                 if (showRecommendedLoading) {
@@ -431,12 +459,12 @@ fun IndicatorDot(
 }
 
 @Composable
-fun SectionTitle(title: String, actionText: String) {
+fun SectionTitle(title: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.Start // Align text to the start
     ) {
         Text(
             text = title,
@@ -444,12 +472,9 @@ fun SectionTitle(title: String, actionText: String) {
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold
         )
-        Text(
-            text = actionText,
-            color = colorResource(R.color.purple)
-        )
     }
 }
+
 @Composable
 fun BottomMenu(
     modifier: Modifier,
